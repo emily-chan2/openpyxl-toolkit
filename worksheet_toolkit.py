@@ -1,3 +1,5 @@
+from numbers import Number
+from openpyxl.styles import Font
 
 class WorksheetToolkit:
     def __init__(self, worksheet):
