@@ -1,21 +1,22 @@
 from numbers import Number
-from openpyxl.styles import Font
+from openpyxl.styles import Color, Font
+
+_UNCHANGED = object()
 
 class WorksheetToolkit:
     def __init__(self, worksheet):
         self.worksheet = worksheet
 
-    def set_font(self, *, rows=[], columns=[], intersections_only=False, name=None, size=None,
-                 bold=None, italic=None, underline=None, strike=None, color=None):
+    def set_font(self, *, rows=None, columns=None, intersections_only=False, name=_UNCHANGED,
+                 size=_UNCHANGED, bold=_UNCHANGED, italic=_UNCHANGED, underline=_UNCHANGED,
+                 strike=_UNCHANGED, color=_UNCHANGED):
         """Sets the font of the cells defined by the lists of rows and columns. If rows and columns
         are both empty lists, then applies the font to all cells.
 
         Parameters
         ----------
-        - ws : Worksheet
-        - font : Font
-        - rows : Union[List[int], int]
-        - columns : Union[List[int], int]
+        - rows : Optional[List[int], int]
+        - columns : Optional[List[int], int]
         - intersections_only : bool
             - If True, then font is applied to only the cells that have a row number in the rows
               argument and a column number in the columns argument. If False, then the font is
@@ -25,9 +26,8 @@ class WorksheetToolkit:
         - size : Optional[int]
         - bold : Optional[bool]
         - italic : Optional[bool]
-        - underline : Optional[bool, str]
-            - 'none', 'single', 'double', 'singleAccounting', or 'doubleAccounting'
-            - Can also use True or False. True means 'single', False means 'none'
+        - underline : Optional[str]
+            - 'single', 'double', 'singleAccounting', 'doubleAccounting', or None
         - strike : Optional[bool]
         - color : Optional[str]
             - Hex color code
@@ -43,49 +43,24 @@ class WorksheetToolkit:
         >>> # Set the font color for all of row 1 and 2, and all of columns 1 and 2
         >>> set_font(rows=[1, 2], columns=[1, 2], color='#000000')
         """
-        ws = self.worksheet
+        for cell in self._iter_cells(rows, columns, intersections_only):
+            cell.font = self._merge_font(cell, name=name, size=size, bold=bold, italic=italic, underline=underline, strike=strike, color=color)
+        return self
 
-        if isinstance(rows, Number):
-            rows = [rows]
-        if isinstance(columns, Number):
-            columns = [columns]
-        if len(rows) == 0 and len(columns) == 0:
-            rows = range(1, ws.max_row+1)
-            columns = range(1, ws.max_column+1)
-
-        if (not intersections_only) or len(rows) == 0 or len(columns) == 0:
-            for row in rows:
-                for col in range(1, ws.max_column+1):
-                    cell = ws.cell(row=row, column=col)
-                    cell.font = self._merge_font(cell, name=name, size=size, bold=bold, italic=italic, underline=underline, strike=strike, color=color)
-            for col in columns:
-                for row in range(1, ws.max_row+1):
-                    cell = ws.cell(row=row, column=col)
-                    cell.font = self._merge_font(cell, name=name, size=size, bold=bold, italic=italic, underline=underline, strike=strike, color=color)
-        else:
-            for row in rows:
-                for col in columns:
-                    cell = ws.cell(row=row, column=col)
-                    cell.font = self._merge_font(cell, name=name, size=size, bold=bold, italic=italic, underline=underline, strike=strike, color=color)
-
-    def _merge_font(self, cell, name=None, size=None, bold=None, italic=None, underline=None,
-                    strike=None, color=None):
+    def _merge_font(self, cell, name=_UNCHANGED, size=_UNCHANGED, bold=_UNCHANGED, italic=_UNCHANGED,
+                    underline=_UNCHANGED, strike=_UNCHANGED, color=_UNCHANGED):
         current_font = cell.font
 
-        font_name = current_font.name if name is None else name
-        font_size = current_font.size if size is None else size
-        font_bold = current_font.bold if bold is None else bold
-        font_italic = current_font.italic if italic is None else italic
-        font_underline = current_font.underline if underline is None else underline
-        if font_underline is True:
-            font_underline = 'single'
-        elif font_underline is False:
-            font_underline = 'none'
-        font_strike = current_font.strike if strike is None else strike
-        font_color = current_font.color if color is None else color
-        if font_color.startswith('#'):
-            font_color = font_color[1:]
-
+        font_name = current_font.name if name is _UNCHANGED else name
+        font_size = current_font.size if size is _UNCHANGED else size
+        font_bold = current_font.bold if bold is _UNCHANGED else bold
+        font_italic = current_font.italic if italic is _UNCHANGED else italic
+        font_underline = current_font.underline if underline is _UNCHANGED else underline
+        font_strike = current_font.strike if strike is _UNCHANGED else strike
+        if color is _UNCHANGED:
+            font_color = current_font.color
+        else:
+            font_color = Color(rgb=color.lstrip("#"))
         new_font = Font(
             name=font_name,
             size=font_size,
@@ -96,3 +71,48 @@ class WorksheetToolkit:
             color=font_color,
         )
         return new_font
+
+    def _iter_cells(self, rows=None, columns=None, intersections_only=False):
+        ws = self.worksheet
+
+        # Normalize rows and columns
+        if rows is None:
+            rows = []
+        if columns is None:
+            columns = []
+        if isinstance(rows, Number):
+            rows = [rows]
+        if isinstance(columns, Number):
+            columns = [columns]
+        if not rows:
+            rows = list(range(1, ws.max_row + 1))
+        if not columns:
+            columns = list(range(1, ws.max_column + 1))
+        rows = sorted(set(rows))
+        columns = sorted(set(columns))
+
+        # Intersection only
+        if intersections_only:
+            for r in rows:
+                for c in columns:
+                    yield ws.cell(row=r, column=c)
+            return
+
+        # Union case
+        seen = set()
+
+        # Row sweep (top → bottom, left → right)
+        for r in rows:
+            for c in range(1, ws.max_column + 1):
+                key = (r, c)
+                if key not in seen:
+                    seen.add(key)
+                    yield ws.cell(row=r, column=c)
+
+        # Column sweep (left → right, top → bottom)
+        for c in columns:
+            for r in range(1, ws.max_row + 1):
+                key = (r, c)
+                if key not in seen:
+                    seen.add(key)
+                    yield ws.cell(row=r, column=c)
