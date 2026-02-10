@@ -148,7 +148,7 @@ class WorksheetToolkit:
                             italic=current_font.italic if italic is _UNCHANGED else italic,
                             underline=current_font.underline if underline is _UNCHANGED else underline,
                             strike=current_font.strike if strike is _UNCHANGED else strike,
-                            color=current_font.color if color is _UNCHANGED else self._normalize_color(color))
+                            color=current_font.color if color is _UNCHANGED else Color(rgb=self._normalize_color(color)))
         return self
 
     def _iter_cells(self, rows=None, columns=None, intersections_only=False):
