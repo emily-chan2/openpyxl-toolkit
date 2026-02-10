@@ -1,5 +1,5 @@
 from numbers import Number
-from openpyxl.styles import Alignment, Color, Font
+from openpyxl.styles import Alignment, Color, Font, PatternFill
 
 _UNCHANGED = object()
 
@@ -102,6 +102,45 @@ class WorksheetToolkit:
             )
         return self
 
+    def set_fill(self, *, rows=None, columns=None, intersections_only=False, fill_type=_UNCHANGED,
+                 start_color=_UNCHANGED, end_color=_UNCHANGED):
+        """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
+        applies to all cells.
+
+        Parameters
+        ----------
+        rows : Union[List[int], int], optional
+        columns : Union[List[int], int], optional
+        intersections_only : bool, optional
+            If True, then fill is applied to only the cells that have a row number in the rows
+            argument and a column number in the columns argument.
+            If False, then the fill is applied to any cell in the given rows and any cell in the
+            given columns.
+            Only considered if both rows and columns are provided.
+        fill_type : str, optional
+            Type of fill/pattern. Common values: 'solid', 'gray125', 'darkGrid', etc.
+        start_color : str, optional
+            Hex color code for the fill foreground, e.g., '#f4d2d3'.
+        end_color : str, optional
+            Hex color code for the fill background (usually same as start_color for solid fills).
+
+        Examples
+        --------
+        >>> # Fill row 1 with pink
+        >>> toolkit.set_fill(rows=1, start_color="#f4d2d3")
+        >>>
+        >>> # Fill intersection of row 1-2 and col 1-2 with yellow
+        >>> toolkit.set_fill(rows=[1,2], columns=[1,2], intersections_only=True, start_color="#ffff00")
+        """
+        for cell in self._iter_cells(rows, columns, intersections_only):
+            current = cell.fill
+            cell.fill = PatternFill(
+                fill_type=current.fill_type if fill_type is _UNCHANGED else fill_type,
+                start_color=current.start_color.rgb if start_color is _UNCHANGED else self._normalize_color(start_color),
+                end_color=current.end_color.rgb if end_color is _UNCHANGED else self._normalize_color(end_color),
+            )
+        return self
+
     def set_font(self, *, rows=None, columns=None, intersections_only=False, name=_UNCHANGED,
                  size=_UNCHANGED, bold=_UNCHANGED, italic=_UNCHANGED, underline=_UNCHANGED,
                  strike=_UNCHANGED, color=_UNCHANGED):
@@ -170,14 +209,14 @@ class WorksheetToolkit:
         rows = sorted(set(rows))
         columns = sorted(set(columns))
 
-        # Intersection only
+        # --- Intersection case ---
         if intersections_only:
             for r in rows:
                 for c in columns:
                     yield ws.cell(row=r, column=c)
             return
 
-        # Union case
+        # --- Union case ---
         seen = set()
 
         # Row sweep (top to bottom, left to right)
