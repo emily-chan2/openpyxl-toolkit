@@ -118,7 +118,8 @@ class WorksheetToolkit:
             given columns.
             Only considered if both rows and columns are provided.
         fill_type : str, optional
-            Type of fill/pattern. Common values: 'solid', 'gray125', 'darkGrid', etc.
+            Type of fill/pattern. Common values: 'solid', 'gray125', 'darkGrid', etc. Use None for
+            transparent fill.
         start_color : str, optional
             Hex color code for the primary fill color (foreground). For solid fills,
             this is the visible background color.
@@ -127,6 +128,7 @@ class WorksheetToolkit:
             relevant for patterned fills (e.g., 'trellis', 'cross', stripes).
             For solid fills, this value is ignored by Excel and usually does not
             need to be provided.
+
         Examples
         --------
         >>> # Fill row 1 with pink
@@ -206,8 +208,10 @@ class WorksheetToolkit:
         if isinstance(columns, Number):
             columns = [columns]
         if not rows:
+            intersections_only = True
             rows = list(range(1, ws.max_row + 1))
         if not columns:
+            intersections_only = True
             columns = list(range(1, ws.max_column + 1))
         rows = sorted(set(rows))
         columns = sorted(set(columns))
