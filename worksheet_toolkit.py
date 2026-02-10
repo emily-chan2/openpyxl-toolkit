@@ -120,10 +120,13 @@ class WorksheetToolkit:
         fill_type : str, optional
             Type of fill/pattern. Common values: 'solid', 'gray125', 'darkGrid', etc.
         start_color : str, optional
-            Hex color code for the fill foreground, e.g., '#f4d2d3'.
+            Hex color code for the primary fill color (foreground). For solid fills,
+            this is the visible background color.
         end_color : str, optional
-            Hex color code for the fill background (usually same as start_color for solid fills).
-
+            Hex color code for the secondary fill color (background). This is only
+            relevant for patterned fills (e.g., 'trellis', 'cross', stripes).
+            For solid fills, this value is ignored by Excel and usually does not
+            need to be provided.
         Examples
         --------
         >>> # Fill row 1 with pink
