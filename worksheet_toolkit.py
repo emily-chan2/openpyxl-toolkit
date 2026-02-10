@@ -46,6 +46,29 @@ class WorksheetToolkit:
         self.worksheet.freeze_panes = cell
         return self
 
+    def merge_cells(self, *, range_string=None, start_row=None, start_column=None, end_row=None,
+                    end_column=None):
+        """Merge a rectangular range of cells in the worksheet. You can either provide
+        `range_string` or all four start/end coordinates.
+
+        Parameters
+        ----------
+        range_string : str, optional
+            A string representing the range to merge, e.g., 'A1:C3'.
+            If provided, start/end row/column are ignored.
+        start_row : int, optional
+            Row number of the top-left cell of the range.
+        start_column : int, optional
+            Column number of the top-left cell of the range.
+        end_row : int, optional
+            Row number of the bottom-right cell of the range.
+        end_column : int, optional
+            Column number of the bottom-right cell of the range.
+        """
+        self.worksheet.merge_cells(range_string=range_string, start_row=start_row, end_row=end_row,
+                                   start_column=start_column, end_column=end_column)
+        return self
+
     def set_alignment(self, *, rows=None, columns=None, intersections_only=False,
                       horizontal=_UNCHANGED, vertical=_UNCHANGED, text_rotation=_UNCHANGED,
                       wrap_text=_UNCHANGED, shrink_to_fit=_UNCHANGED, indent=_UNCHANGED,
