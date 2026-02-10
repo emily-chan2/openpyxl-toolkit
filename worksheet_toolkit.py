@@ -195,6 +195,19 @@ class WorksheetToolkit:
                             color=current_font.color if color is _UNCHANGED else Color(rgb=self._normalize_color(color)))
         return self
 
+    def set_zoom_scale(self, zoom_scale=100):
+        """Set the zoom scale.
+        
+        Parameters
+        ----------
+        zoom_scale : int, optional
+            Zoom percentage (10-400). Defaults to 100.
+        """
+        if not 10 <= zoom_scale <= 400:
+            raise ValueError("zoom_scale must be between 10 and 400")
+        self.worksheet.sheet_view.zoomScale = zoom_scale
+        return self
+
     def _iter_cells(self, rows=None, columns=None, intersections_only=False):
         ws = self.worksheet
 
