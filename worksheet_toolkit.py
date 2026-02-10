@@ -140,12 +140,6 @@ class WorksheetToolkit:
         >>> # Set the font color for all of row 1 and 2, and all of columns 1 and 2
         >>> set_font(rows=[1, 2], columns=[1, 2], color='#000000')
         """
-        if color is not _UNCHANGED:
-            hex_color = color.lstrip("#")
-            if len(hex_color) == 6:
-                hex_color = f'FF{hex_color}'
-            font_color = Color(rgb=hex_color)
-
         for cell in self._iter_cells(rows, columns, intersections_only):
             current_font = cell.font
             cell.font = Font(name=current_font.name if name is _UNCHANGED else name,
@@ -154,7 +148,7 @@ class WorksheetToolkit:
                             italic=current_font.italic if italic is _UNCHANGED else italic,
                             underline=current_font.underline if underline is _UNCHANGED else underline,
                             strike=current_font.strike if strike is _UNCHANGED else strike,
-                            color=current_font.color if color is _UNCHANGED else font_color)
+                            color=current_font.color if color is _UNCHANGED else self._normalize_color(color))
         return self
 
     def _iter_cells(self, rows=None, columns=None, intersections_only=False):
@@ -201,3 +195,11 @@ class WorksheetToolkit:
                 if key not in seen:
                     seen.add(key)
                     yield ws.cell(row=r, column=c)
+
+    def _normalize_color(self, color):
+        if color is _UNCHANGED:
+            return _UNCHANGED
+        hex_color = color.lstrip('#')
+        if len(hex_color) == 6:
+            hex_color = f'FF{hex_color}'
+        return hex_color
