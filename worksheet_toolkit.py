@@ -98,8 +98,67 @@ class WorksheetToolkit:
                 wrap_text=current.wrapText if wrap_text is _UNCHANGED else wrap_text,
                 shrink_to_fit=current.shrinkToFit if shrink_to_fit is _UNCHANGED else shrink_to_fit,
                 indent=current.indent if indent is _UNCHANGED else indent,
-                reading_order=current.readingOrder if reading_order is _UNCHANGED else reading_order,
+                readingOrder=current.readingOrder if reading_order is _UNCHANGED else reading_order,
             )
+        return self
+
+    def set_column_best_fit(self, *, columns=None, padding=2, ignore_rows=None, ignore_formulas=True):
+        """Auto-fit columns to their contents for Calibri font.
+
+        Uses the approximation:
+            width = 0.09903846 * font_size + 0.00186808
+        multiplied by the length of the longest cell in each column.
+
+        Parameters
+        ----------
+        columns : int or list of int, optional
+            Column numbers to auto-fit. Defaults to all columns.
+        padding : int, optional
+            Extra width added to prevent clipping. Defaults to 2.
+        ignore_rows : list of int, optional
+            Row numbers to ignore when calculating maximum cell length.
+        ignore_formulas : bool, optional
+            If True, cells containing formulas are ignored in width calculation.
+
+        Notes
+        -----
+        - This method assumes text is in a single line.
+        - Works best for Calibri; other fonts may appear slightly off.
+        """
+        ws = self.worksheet
+        if columns is None:
+            columns = range(1, ws.max_column + 1)
+        if isinstance(columns, int):
+            columns = [columns]
+        if ignore_rows is None:
+            ignore_rows = set()
+        else:
+            ignore_rows = set(ignore_rows)
+
+        for col in columns:
+            max_len = 0
+            font_size = 11  # default Calibri size
+
+            for row in range(1, ws.max_row + 1):
+                if row in ignore_rows:
+                    continue
+
+                cell = ws.cell(row=row, column=col)
+
+                if ignore_formulas and cell.data_type == 'f':
+                    continue
+
+                value = str(cell.value) if cell.value is not None else ''
+                max_len = max(max_len, len(value))
+
+                # Update font size if cell has a specific font
+                if cell.font and cell.font.sz:
+                    font_size = max(font_size, cell.font.sz)
+
+            # Approximate Excel width using Calibri formula
+            excel_width = (0.09903846 * font_size + 0.00186808) * max_len
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = excel_width + padding
+
         return self
 
     def set_fill(self, *, rows=None, columns=None, intersections_only=False, fill_type=_UNCHANGED,
