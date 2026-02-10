@@ -58,10 +58,10 @@ class WorksheetToolkit:
         rows : Union[List[int], int], optional
         columns : Union[List[int], int], optional
         intersections_only : bool
-            If True, then font is applied to only the cells that have a row number in the rows
+            If True, then alignment is applied to only the cells that have a row number in the rows
             argument and a column number in the columns argument.
-            If False, then the font is applied to any cell in the given rows and any cell in the
-            given columns.
+            If False, then the alignment is applied to any cell in the given rows and any cell in
+            the given columns.
             Only considered if both rows and columns are provided.
         horizontal : str, optional
             Horizontal alignment: 'general', 'left', 'center', 'right', 'fill', 'justify',
@@ -140,6 +140,12 @@ class WorksheetToolkit:
         >>> # Set the font color for all of row 1 and 2, and all of columns 1 and 2
         >>> set_font(rows=[1, 2], columns=[1, 2], color='#000000')
         """
+        if color is not _UNCHANGED:
+            hex_color = color.lstrip("#")
+            if len(hex_color) == 6:
+                hex_color = f'FF{hex_color}'
+            font_color = Color(rgb=hex_color)
+
         for cell in self._iter_cells(rows, columns, intersections_only):
             current_font = cell.font
             cell.font = Font(name=current_font.name if name is _UNCHANGED else name,
@@ -148,7 +154,7 @@ class WorksheetToolkit:
                             italic=current_font.italic if italic is _UNCHANGED else italic,
                             underline=current_font.underline if underline is _UNCHANGED else underline,
                             strike=current_font.strike if strike is _UNCHANGED else strike,
-                            color=current_font.color if color is _UNCHANGED else Color(rgb=color.lstrip("#")))
+                            color=current_font.color if color is _UNCHANGED else font_color)
         return self
 
     def _iter_cells(self, rows=None, columns=None, intersections_only=False):
