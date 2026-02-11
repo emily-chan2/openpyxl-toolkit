@@ -259,9 +259,7 @@ class WorksheetToolkit:
             ignore_rows = set(ignore_rows)
 
         for col in columns:
-            max_len = 0
-            font_size = 11  # default Calibri size
-
+            excel_width = 0
             for row in range(1, ws.max_row + 1):
                 if row in ignore_rows:
                     continue
@@ -272,14 +270,9 @@ class WorksheetToolkit:
                     continue
 
                 value = str(cell.value) if cell.value is not None else ''
-                max_len = max(max_len, len(value))
-
-                # Update font size if cell has a specific font
-                if cell.font and cell.font.sz:
-                    font_size = max(font_size, cell.font.sz)
+                excel_width = max((0.09903846 * cell.font.sz + 0.00186808) * len(value), excel_width)
 
             # Approximate Excel width using Calibri formula
-            excel_width = (0.09903846 * font_size + 0.00186808) * max_len
             ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = excel_width + padding
 
         return self
