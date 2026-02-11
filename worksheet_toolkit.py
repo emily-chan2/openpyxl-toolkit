@@ -134,7 +134,7 @@ class WorksheetToolkit:
         rows : int or list of int, optional
         columns : int or list of int, optional
         intersections_only : bool, optional
-        sides : tuple of str, optional
+        sides : str or tuple of str, optional
             Sides to modify. Can include:
             'top', 'bottom', 'left', 'right', 'diagonal_up', 'diagonal_down'.
         style : str, optional
@@ -153,6 +153,9 @@ class WorksheetToolkit:
         >>> toolkit.set_border(rows=2, columns=2, intersection_only=True, sides=('diagonal_up'),
         >>>                    style='thin', color='#00ff00')
         """
+        if isinstance(sides, str):
+            sides = tuple([sides])
+
         for cell in self._iter_cells(rows, columns, intersections_only):
             current = cell.border
             border_kwargs = {}
@@ -184,8 +187,7 @@ class WorksheetToolkit:
 
         return self
 
-    def set_outside_border(self, *, start_row, end_row, start_column, end_column, style='thin',
-                           color='#000000'):
+    def set_outside_border(self, *, start_row, end_row, start_column, end_column, style=_UNCHANGED, color=_UNCHANGED):
         """Set a border only on the outside edges of a rectangular block of cells.
 
         Parameters
@@ -277,7 +279,7 @@ class WorksheetToolkit:
 
         return self
 
-    def set_column_width(self, columns, width):
+    def set_column_width(self, *, columns=None, width=_UNCHANGED):
         """
         Set the width of one or more columns.
 
@@ -288,13 +290,15 @@ class WorksheetToolkit:
         width : float
             Column width in Excel character units (not pixels).
         """
-        if isinstance(columns, Number):
-            columns = [columns]
+        if width is not _UNCHANGED:
+            if isinstance(columns, Number):
+                columns = [columns]
+            if len(columns) == 0:
+                columns = list(range(1, self.worksheet.max_column+1))
 
-        for col in columns:
-            column_letter = self.worksheet.cell(row=1, column=col).column_letter
-            self.worksheet.column_dimensions[column_letter].width = width
-
+            for col in columns:
+                column_letter = self.worksheet.cell(row=1, column=col).column_letter
+                self.worksheet.column_dimensions[column_letter].width = width
         return self
 
     def set_fill(self, *, rows=None, columns=None, intersections_only=True, fill_type=_UNCHANGED,
@@ -387,7 +391,7 @@ class WorksheetToolkit:
                             italic=current_font.italic if italic is _UNCHANGED else italic,
                             underline=current_font.underline if underline is _UNCHANGED else underline,
                             strike=current_font.strike if strike is _UNCHANGED else strike,
-                            color=current_font.color if color is _UNCHANGED else Color(rgb=self._normalize_color(color)))
+                            color=current_font.color if color is _UNCHANGED else self._normalize_color(color))
         return self
 
     def set_zoom_scale(self, zoom_scale=100):
