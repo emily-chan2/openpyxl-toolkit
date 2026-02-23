@@ -301,6 +301,27 @@ class WorksheetToolkit:
                 self.worksheet.column_dimensions[column_letter].width = width
         return self
 
+    def set_row_height(self, *, rows=None, height=_UNCHANGED):
+        """
+        Set the height of one or more rows.
+
+        Parameters
+        ----------
+        rows : int or list of int
+            Row number(s) to modify.
+        height : float
+            Row width in Excel character units (not pixels).
+        """
+        if height is not _UNCHANGED:
+            if isinstance(rows, Number):
+                rows = [rows]
+            if len(rows) == 0:
+                rows = list(range(1, self.worksheet.max_row+1))
+
+            for row in rows:
+                self.worksheet.row_dimensions[row].height = height
+        return self
+
     def set_fill(self, *, rows=None, columns=None, intersections_only=True, fill_type=_UNCHANGED,
                  start_color=_UNCHANGED, end_color=_UNCHANGED):
         """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
