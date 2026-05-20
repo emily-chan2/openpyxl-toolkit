@@ -150,7 +150,7 @@ class WorksheetToolkit:
         >>> toolkit.set_border(rows=[1,2], sides=('top','bottom'), style='thin', color='#ff0000')
         >>>
         >>> # Draw a diagonal line from bottom-left to top-right in cell B2
-        >>> toolkit.set_border(rows=2, columns=2, intersection_only=True, sides=('diagonal_up'),
+        >>> toolkit.set_border(rows=2, columns=2, intersections_only=True, sides=('diagonal_up'),
         >>>                    style='thin', color='#00ff00')
         """
         if isinstance(sides, str):
@@ -293,7 +293,7 @@ class WorksheetToolkit:
         if width is not _UNCHANGED:
             if isinstance(columns, Number):
                 columns = [columns]
-            if len(columns) == 0:
+            if columns is None:
                 columns = list(range(1, self.worksheet.max_column+1))
 
             for col in columns:
@@ -315,7 +315,7 @@ class WorksheetToolkit:
         if height is not _UNCHANGED:
             if isinstance(rows, Number):
                 rows = [rows]
-            if len(rows) == 0:
+            if rows is None:
                 rows = list(range(1, self.worksheet.max_row+1))
 
             for row in rows:
