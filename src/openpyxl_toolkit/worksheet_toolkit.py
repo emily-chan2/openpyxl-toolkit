@@ -5,6 +5,8 @@ from numbers import Number
 from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from . import _metrics
+
 _UNCHANGED = object()
 
 # Excel's grid limits. openpyxl will create a cell outside them without complaint,
@@ -446,29 +448,57 @@ class WorksheetToolkit:
         return self
 
     def set_column_best_fit(
-        self, *, columns=None, padding=2, ignore_rows=None, ignore_formulas=True
+        self,
+        *,
+        columns=None,
+        padding=0,
+        ignore_rows=None,
+        ignore_formulas=True,
+        min_width=None,
+        max_width=None,
+        measure=None,
     ):
-        """Auto-fit columns to their contents for Calibri font.
+        """Fit columns to their widest cell.
 
-        Uses the approximation:
-            width = 0.09903846 * font_size + 0.00186808
-        multiplied by the length of the longest cell in each column.
+        Widths come from the real per-character advances of Calibri, so a column of
+        narrow letters is not given the same width as one of capitals. Excel's own
+        formula is used to turn that into a column width:
+
+            width = (pixels of text + 5 padding pixels) / max digit width
+
+        A column with nothing in it is left alone rather than shrunk.
 
         Parameters
         ----------
         columns : int or list of int, optional
-            Column numbers to auto-fit. Defaults to all columns.
-        padding : int, optional
-            Extra width added to prevent clipping. Defaults to 2.
+            Column numbers to fit. Defaults to every column in use.
+        padding : float, optional
+            Extra width on top of the fitted value. Defaults to 0; Excel's own
+            5 pixels of cell padding are already part of the formula.
         ignore_rows : list of int, optional
-            Row numbers to ignore when calculating maximum cell length.
+            Row numbers to leave out when measuring.
         ignore_formulas : bool, optional
-            If True, cells containing formulas are ignored in width calculation.
+            If True, cells holding formulas are not measured. The formula text is
+            not what the reader sees, so measuring it oversizes the column.
+        min_width : float, optional
+            Lower bound on the result.
+        max_width : float, optional
+            Upper bound. Defaults to Excel's own maximum of 255.
+        measure : callable, optional
+            ``measure(text, font, normal_font) -> width``, where each font is a
+            ``(name, point_size)`` pair: the cell's own font, and the workbook's
+            normal font that Excel's width unit is defined in. Supply this for a
+            face with no built-in table.
 
         Notes
         -----
-        - This method assumes text is in a single line.
-        - Works best for Calibri; other fonts may appear slightly off.
+        - Text is assumed to be on one line; wrapped text is not accounted for.
+        - Only dates and times are rendered as Excel displays them. Other number
+          formats are measured as the value is stored, so a currency or percentage
+          column may come out narrower than it needs to be.
+        - Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman,
+          Courier New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face
+          is measured with Calibri's advances unless ``measure`` is given.
         """
         ws = self.worksheet
         if columns is None:
@@ -480,8 +510,9 @@ class WorksheetToolkit:
         # workbook permanently unsaveable, so a later failure would come too late.
         _check_bounds(columns=columns)
         ignore_rows = set() if ignore_rows is None else set(ignore_rows)
-        default_size = self._default_font_size()
+        normal_font = self._normal_font()
 
+        measure = measure or self._measure_text
         for col in columns:
             excel_width = 0
             measured_anything = False
@@ -498,20 +529,24 @@ class WorksheetToolkit:
                     continue
 
                 measured_anything = True
-                value = _displayed_text(cell)
-                # A cell that inherits the workbook font reports no size of its own,
-                # which Font(bold=True) alone is enough to produce.
-                size = default_size if cell.font.sz is None else cell.font.sz
-                excel_width = max((0.09903846 * size + 0.00186808) * len(value), excel_width)
+                # A cell that inherits the workbook font reports neither name nor
+                # size of its own, which Font(bold=True) alone is enough to produce.
+                font = (
+                    cell.font.name or normal_font[0],
+                    normal_font[1] if cell.font.sz is None else cell.font.sz,
+                )
+                excel_width = max(measure(_displayed_text(cell), font, normal_font), excel_width)
 
             if not measured_anything:
                 # Nothing to fit. Leaving the column alone matters because a width
                 # set deliberately beforehand would otherwise be cut to the padding.
                 continue
 
-            # Approximate Excel width using Calibri formula
+            width = excel_width + padding
+            if min_width is not None:
+                width = max(width, min_width)
             ws.column_dimensions[get_column_letter(col)].width = min(
-                excel_width + padding, _MAX_COLUMN_WIDTH
+                width, _MAX_COLUMN_WIDTH if max_width is None else max_width
             )
 
         return self
@@ -766,12 +801,25 @@ class WorksheetToolkit:
         self.worksheet.sheet_view.zoomScale = zoom_scale
         return self
 
-    def _default_font_size(self):
-        """The size a cell with no font record of its own inherits."""
+    @staticmethod
+    def _measure_text(text, font, normal_font):
+        """Column width that fits ``text``, from the real advances of its font."""
+        name, size = font
+        base_name, base_size = normal_font
+        return _metrics.column_width(text, size, base_size, name, base_name)
+
+    def _normal_font(self):
+        """The workbook's normal font, as ``(name, point_size)``.
+
+        A cell with no font record of its own inherits this, and Excel's column
+        width unit is defined by it rather than by whatever the cell uses.
+        """
         fonts = getattr(self.worksheet.parent, "_fonts", None)
-        if fonts and getattr(fonts[0], "sz", None) is not None:
-            return fonts[0].sz
-        return DEFAULT_FONT.sz
+        normal = fonts[0] if fonts else None
+        return (
+            getattr(normal, "name", None) or DEFAULT_FONT.name,
+            getattr(normal, "sz", None) or DEFAULT_FONT.sz,
+        )
 
     def _iter_cells(self, rows=None, columns=None, intersections_only=True):
         ws = self.worksheet
