@@ -120,7 +120,6 @@ def test_lowercase_hex_colour_is_stored_as_upper_case_argb(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].font.color.rgb == "FFFF0000"
 
 
-@pytest.mark.xfail(reason="color=None raises AttributeError instead of clearing", strict=True)
 def test_colour_none_clears_a_previously_set_colour(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_font(color="#FF0000")

@@ -102,7 +102,6 @@ def test_empty_selection_paints_every_used_cell(sheet, roundtrip):
     assert _painted(roundtrip(sheet)) == {"A1", "A2", "B1", "B2"}
 
 
-@pytest.mark.xfail(reason="an existing theme colour crashes set_fill", strict=True)
 def test_existing_theme_colour_is_kept_when_only_the_pattern_changes(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill(
@@ -115,7 +114,6 @@ def test_existing_theme_colour_is_kept_when_only_the_pattern_changes(sheet, roun
     assert (colour.type, colour.theme, colour.tint) == ("theme", 9, pytest.approx(0.6))
 
 
-@pytest.mark.xfail(reason="an existing indexed colour crashes set_fill", strict=True)
 def test_existing_indexed_colour_is_kept_when_only_the_pattern_changes(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill(
@@ -128,7 +126,6 @@ def test_existing_indexed_colour_is_kept_when_only_the_pattern_changes(sheet, ro
     assert (colour.type, colour.indexed) == ("indexed", 5)
 
 
-@pytest.mark.xfail(reason="an existing automatic colour crashes set_fill", strict=True)
 def test_existing_automatic_colour_is_kept_when_only_the_pattern_changes(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill(
@@ -141,7 +138,6 @@ def test_existing_automatic_colour_is_kept_when_only_the_pattern_changes(sheet, 
     assert (colour.type, colour.auto) == ("auto", True)
 
 
-@pytest.mark.xfail(reason="a GradientFill has no start_color/end_color to read", strict=True)
 def test_a_gradient_filled_cell_can_be_given_a_solid_fill(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = GradientFill(stop=("FFFFFFFF", "FFFF0000"))
@@ -161,7 +157,6 @@ def test_a_colour_on_its_own_produces_a_visible_fill(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].fill.fill_type == "solid"
 
 
-@pytest.mark.xfail(reason="a mid-range failure leaves earlier cells already filled", strict=True)
 def test_a_failing_call_leaves_no_cell_in_the_range_painted(sheet, roundtrip, monkeypatch):
     """A range is formatted as a unit: if one cell cannot be filled, none is."""
     _grid(sheet)
@@ -181,3 +176,34 @@ def test_a_failing_call_leaves_no_cell_in_the_range_painted(sheet, roundtrip, mo
         )
 
     assert _painted(roundtrip(sheet)) == set()
+
+
+def test_a_cell_does_not_share_a_colour_object_with_the_fill_it_was_read_from(sheet, roundtrip):
+    """A Color is stored by reference; sharing one lets a later mutation repaint cells."""
+    _grid(sheet)
+    header = PatternFill(patternType="solid", fgColor=Color(rgb="FF3366CC"))
+    sheet["A1"].fill = header
+
+    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="lightGrid")
+    header.start_color.rgb = "FFFF0000"
+
+    assert roundtrip(sheet)["A1"].fill.start_color.rgb == "FF3366CC"
+
+
+def test_a_gradient_survives_a_call_that_asks_for_nothing(sheet, roundtrip):
+    """set_fill with no style arguments must not flatten a gradient into a blank fill."""
+    _grid(sheet)
+    sheet["A1"].fill = GradientFill(stop=("FFFFFFFF", "FFFF0000"))
+
+    WorksheetToolkit(sheet).set_fill(rows=1, columns=1)
+
+    assert roundtrip(sheet)["A1"].fill.tagname == "gradientFill"
+
+
+def test_clearing_a_colour_is_rejected_rather_than_silently_repainting(sheet):
+    """None has no meaning for a pattern fill: its default foreground is opaque black."""
+    _grid(sheet)
+    toolkit = WorksheetToolkit(sheet)
+    for kwargs in ({"start_color": None}, {"end_color": None}):
+        with pytest.raises(ValueError, match="cannot clear a colour"):
+            toolkit.set_fill(rows=1, columns=1, **kwargs)

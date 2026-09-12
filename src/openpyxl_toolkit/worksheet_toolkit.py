@@ -1,8 +1,46 @@
+from copy import copy
 from numbers import Number
 
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import DEFAULT_FONT, Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 _UNCHANGED = object()
+
+# Excel's grid limits. openpyxl will create a cell outside them without complaint,
+# but the workbook can then never be saved, so they are rejected at the door.
+# get_column_letter is not a substitute: it accepts up to ZZZ (18278).
+_MAX_ROW = 1_048_576
+_MAX_COLUMN = 16_384
+
+
+def _check_indexes(indexes, limit, label):
+    """Reject indexes openpyxl would accept but Excel cannot store."""
+    for index in indexes:
+        # bool is an int, and a float index writes a cell reference like "A1.5"
+        # that openpyxl itself can no longer parse when reloading the file.
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise TypeError(f"{label} index must be an integer, got {index!r}")
+        if not 1 <= index <= limit:
+            raise ValueError(
+                f"{label} {index} is outside the worksheet: {label}s run from 1 to {limit}"
+            )
+
+
+def _check_bounds(rows=(), columns=()):
+    _check_indexes(rows, _MAX_ROW, "row")
+    _check_indexes(columns, _MAX_COLUMN, "column")
+
+
+def _normalize_color(color):
+    if color is _UNCHANGED:
+        return _UNCHANGED
+    if color is None:
+        # None clears the colour; _UNCHANGED is how "leave it alone" is spelled.
+        return None
+    hex_color = color.lstrip("#")
+    if len(hex_color) == 6:
+        hex_color = f"FF{hex_color}"
+    return hex_color
 
 
 class WorksheetToolkit:
@@ -318,9 +356,14 @@ class WorksheetToolkit:
         ws = self.worksheet
         if columns is None:
             columns = range(1, ws.max_column + 1)
-        if isinstance(columns, int):
+        if isinstance(columns, Number):
             columns = [columns]
+        columns = list(columns)
+        # Before any ws.cell() call: materialising an out-of-grid cell makes the
+        # workbook permanently unsaveable, so a later failure would come too late.
+        _check_bounds(columns=columns)
         ignore_rows = set() if ignore_rows is None else set(ignore_rows)
+        default_size = self._default_font_size()
 
         for col in columns:
             excel_width = 0
@@ -334,14 +377,13 @@ class WorksheetToolkit:
                     continue
 
                 value = str(cell.value) if cell.value is not None else ""
-                excel_width = max(
-                    (0.09903846 * cell.font.sz + 0.00186808) * len(value), excel_width
-                )
+                # A cell that inherits the workbook font reports no size of its own,
+                # which Font(bold=True) alone is enough to produce.
+                size = default_size if cell.font.sz is None else cell.font.sz
+                excel_width = max((0.09903846 * size + 0.00186808) * len(value), excel_width)
 
             # Approximate Excel width using Calibri formula
-            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = (
-                excel_width + padding
-            )
+            ws.column_dimensions[get_column_letter(col)].width = excel_width + padding
 
         return self
 
@@ -362,9 +404,12 @@ class WorksheetToolkit:
             if columns is None:
                 columns = list(range(1, self.worksheet.max_column + 1))
 
+            columns = list(columns)
+            _check_bounds(columns=columns)
             for col in columns:
-                column_letter = self.worksheet.cell(row=1, column=col).column_letter
-                self.worksheet.column_dimensions[column_letter].width = width
+                # get_column_letter rather than a cell lookup: row 1 of the column
+                # may be a MergedCell, which has no column_letter at all.
+                self.worksheet.column_dimensions[get_column_letter(col)].width = width
         return self
 
     def set_row_height(self, *, rows=None, height=_UNCHANGED):
@@ -384,6 +429,8 @@ class WorksheetToolkit:
             if rows is None:
                 rows = list(range(1, self.worksheet.max_row + 1))
 
+            rows = list(rows)
+            _check_bounds(rows=rows)
             for row in rows:
                 self.worksheet.row_dimensions[row].height = height
         return self
@@ -431,17 +478,60 @@ class WorksheetToolkit:
         >>> # Fill intersection of row 1-2 and col 1-2 with yellow
         >>> toolkit.set_fill(rows=[1,2], columns=[1,2], intersections_only=True, start_color='#ffff00')
         """
+        if start_color is None or end_color is None:
+            # A pattern fill has no colourless state: its default foreground is an
+            # opaque black, so None here would repaint rather than clear.
+            raise ValueError(
+                "set_fill cannot clear a colour on its own -- a pattern fill always carries "
+                "one. Pass fill_type=None to remove the fill, or give an explicit hex colour."
+            )
+
+        requested = any(arg is not _UNCHANGED for arg in (fill_type, start_color, end_color))
+
+        # Every fill is built before any is assigned, so a failure part-way through
+        # leaves the worksheet exactly as it was found rather than half-formatted.
+        updates = []
         for cell in self._iter_cells(rows, columns, intersections_only):
             current = cell.fill
-            cell.fill = PatternFill(
-                fill_type=current.fill_type if fill_type is _UNCHANGED else fill_type,
-                start_color=current.start_color.rgb
-                if start_color is _UNCHANGED
-                else self._normalize_color(start_color),
-                end_color=current.end_color.rgb
-                if end_color is _UNCHANGED
-                else self._normalize_color(end_color),
+            # cell.fill is a StyleProxy, so isinstance against PatternFill never
+            # matches; the wrapped object's tagname is what distinguishes them.
+            if getattr(current, "tagname", None) == "patternFill":
+                current_type = current.fill_type
+                # copy(), not the object itself: a Color is stored by reference, so
+                # passing the existing one through would leave this cell sharing a
+                # mutable Color with whatever it was read from -- including the
+                # process-global default that PatternFill uses for an absent bgColor.
+                current_start = copy(current.start_color)
+                current_end = copy(current.end_color)
+            elif not requested:
+                # Nothing was asked for, so leave the gradient alone rather than
+                # flattening it into a blank pattern fill.
+                continue
+            else:
+                # A GradientFill has no pattern or start/end colour to merge with,
+                # so anything left unspecified falls back to PatternFill's default.
+                current_type = current_start = current_end = None
+
+            updates.append(
+                (
+                    cell,
+                    PatternFill(
+                        fill_type=current_type if fill_type is _UNCHANGED else fill_type,
+                        # The Color object is passed through rather than its .rgb:
+                        # for a theme, indexed or automatic colour that attribute is
+                        # the descriptor itself, which PatternFill rejects.
+                        start_color=current_start
+                        if start_color is _UNCHANGED
+                        else _normalize_color(start_color),
+                        end_color=current_end
+                        if end_color is _UNCHANGED
+                        else _normalize_color(end_color),
+                    ),
+                )
             )
+
+        for cell, fill in updates:
+            cell.fill = fill
         return self
 
     def set_font(
@@ -502,7 +592,7 @@ class WorksheetToolkit:
                 italic=current_font.italic if italic is _UNCHANGED else italic,
                 underline=current_font.underline if underline is _UNCHANGED else underline,
                 strike=current_font.strike if strike is _UNCHANGED else strike,
-                color=current_font.color if color is _UNCHANGED else self._normalize_color(color),
+                color=current_font.color if color is _UNCHANGED else _normalize_color(color),
             )
         return self
 
@@ -518,6 +608,13 @@ class WorksheetToolkit:
             raise ValueError("zoom_scale must be between 10 and 400")
         self.worksheet.sheet_view.zoomScale = zoom_scale
         return self
+
+    def _default_font_size(self):
+        """The size a cell with no font record of its own inherits."""
+        fonts = getattr(self.worksheet.parent, "_fonts", None)
+        if fonts and getattr(fonts[0], "sz", None) is not None:
+            return fonts[0].sz
+        return DEFAULT_FONT.sz
 
     def _iter_cells(self, rows=None, columns=None, intersections_only=True):
         ws = self.worksheet
@@ -539,6 +636,7 @@ class WorksheetToolkit:
             columns = list(range(1, ws.max_column + 1))
         rows = sorted(set(rows))
         columns = sorted(set(columns))
+        _check_bounds(rows, columns)
 
         # --- Intersection case ---
         if intersections_only:
@@ -565,11 +663,3 @@ class WorksheetToolkit:
                 if key not in seen:
                     seen.add(key)
                     yield ws.cell(row=r, column=c)
-
-    def _normalize_color(self, color):
-        if color is _UNCHANGED:
-            return _UNCHANGED
-        hex_color = color.lstrip("#")
-        if len(hex_color) == 6:
-            hex_color = f"FF{hex_color}"
-        return hex_color

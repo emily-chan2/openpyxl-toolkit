@@ -169,7 +169,6 @@ def test_dimension_setters_return_the_toolkit_for_chaining(sheet):
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="non-anchor MergedCell has no column_letter", strict=True)
 def test_column_width_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.merge_cells(range_string="A1:D1")
@@ -179,7 +178,6 @@ def test_column_width_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     assert [ws.column_dimensions[letter].width for letter in "ABC"] == [15, 15, 15]
 
 
-@pytest.mark.xfail(reason="non-anchor MergedCell has no column_letter", strict=True)
 def test_best_fit_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     sheet["A2"] = "a" * 20
     sheet["B2"] = "b" * 5
@@ -194,7 +192,6 @@ def test_best_fit_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     assert widths[0] > widths[2] > widths[1]
 
 
-@pytest.mark.xfail(reason="cell.font.sz of None is multiplied instead of defaulted", strict=True)
 def test_best_fit_handles_a_font_with_no_explicit_size(sheet, roundtrip):
     """A font that inherits its size should fit like the same text at the default size."""
     sheet["A1"] = "hello world"
@@ -270,7 +267,6 @@ def test_negative_row_height_is_rejected(sheet):
         WorksheetToolkit(sheet).set_row_height(rows=1, height=-5)
 
 
-@pytest.mark.xfail(reason="row 0 is accepted although rows are 1-based", strict=True)
 def test_row_zero_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
         WorksheetToolkit(sheet).set_row_height(rows=0, height=20)
@@ -286,3 +282,18 @@ def test_column_width_without_a_width_is_rejected(sheet):
 def test_row_height_without_a_height_is_rejected(sheet):
     with pytest.raises((TypeError, ValueError)):
         WorksheetToolkit(sheet).set_row_height(rows=1)
+
+
+def test_best_fit_uses_the_workbook_default_size_not_a_hardcoded_eleven(sheet):
+    """Font(bold=True) leaves sz unset, so the fallback decides the width."""
+    sheet.parent._fonts[0] = Font(name="Arial", sz=20)
+    sheet["A1"] = "hello world"
+    sheet["A1"].font = Font(bold=True)
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=1)
+    at_20pt = sheet.column_dimensions["A"].width
+
+    sheet.parent._fonts[0] = Font(name="Arial", sz=8)
+    WorksheetToolkit(sheet).set_column_best_fit(columns=1)
+
+    assert at_20pt > sheet.column_dimensions["A"].width

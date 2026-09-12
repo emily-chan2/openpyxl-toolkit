@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `set_fill` no longer raises `TypeError` on a cell whose existing fill uses a theme,
+  indexed or automatic colour. Reading `.rgb` off such a colour returns openpyxl's
+  descriptor rather than a string, so the `Color` itself is used instead -- copied, not
+  shared, since a `Color` is stored by reference and sharing one lets a later mutation
+  repaint every cell that inherited it.
+- `set_fill` no longer raises `AttributeError` on a cell carrying a `GradientFill`. A
+  call that asks for no change leaves the gradient alone; one that does asks replaces it.
+- `set_fill` builds every fill before assigning any of them, so a failure part-way
+  through a range no longer leaves the worksheet half-formatted.
+- `set_column_width` and `set_column_best_fit` no longer raise `AttributeError` when
+  row 1 of a target column belongs to a merged range. They looked the column letter up
+  through a cell, and a non-anchor `MergedCell` has no `column_letter`.
+- `set_column_best_fit` no longer raises `TypeError` on a cell whose font has no explicit
+  size, which `Font(bold=True)` alone is enough to produce. It falls back to the
+  workbook's own default font size rather than assuming 11pt.
+- `set_font(color=None)` clears the font colour instead of raising `AttributeError`;
+  `_UNCHANGED` remains the way to say "leave it alone". `set_fill` rejects a `None`
+  colour with `ValueError`, because a pattern fill has no colourless state -- pass
+  `fill_type=None` to remove the fill instead.
+- Row and column indexes outside Excel's grid are rejected, in the dimension setters as
+  well as the style setters. openpyxl created such cells without complaint and the
+  workbook could then never be saved. Non-integer indexes raise `TypeError`: a float
+  wrote a cell reference such as `A1.5` that openpyxl could not read back.
+
 ### Added
 
 - Packaged the project for distribution: `src/` layout, `pyproject.toml` (hatchling),
