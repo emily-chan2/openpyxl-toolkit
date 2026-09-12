@@ -1,0 +1,158 @@
+"""Behaviour of ``set_border`` and ``set_outside_border``.
+
+Everything is asserted on the reloaded worksheet: a border that only exists in
+memory is not a border.
+"""
+
+import pytest
+from openpyxl.styles import Side
+
+from openpyxl_toolkit import WorksheetToolkit
+
+
+def test_thin_border_survives_on_the_named_sides(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top", "bottom"), style="thin")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.top.style, border.bottom.style) == ("thin", "thin")
+
+
+def test_sides_that_were_not_named_stay_without_a_border(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top", "bottom"), style="thin")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.left.style, border.right.style) == (None, None)
+
+
+def test_a_later_call_on_another_side_preserves_the_earlier_side(sheet, roundtrip):
+    """The merge guarantee: a second call adds a side, it does not start over."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin")
+    toolkit.set_border(rows=1, columns=1, sides=("left",), style="thick")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.top.style, border.left.style) == ("thin", "thick")
+
+
+def test_recolouring_a_side_leaves_its_style_intact(sheet, roundtrip):
+    """Passing only ``color`` must not drop the style set by an earlier call."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=1, columns=1, sides=("top",), style="medium")
+    toolkit.set_border(rows=1, columns=1, sides=("top",), color="#0000ff")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert border.top.style == "medium"
+
+
+def test_applying_a_border_leaves_an_existing_font_alone(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_font(rows=1, columns=1, bold=True)
+    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin")
+
+    assert roundtrip(sheet).cell(row=1, column=1).font.bold is True
+
+
+def test_outside_border_draws_the_perimeter_of_the_block(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_outside_border(
+        start_row=1, end_row=3, start_column=1, end_column=3, style="thin"
+    )
+
+    reloaded = roundtrip(sheet)
+    perimeter = (
+        reloaded.cell(row=1, column=2).border.top.style,
+        reloaded.cell(row=3, column=2).border.bottom.style,
+        reloaded.cell(row=2, column=1).border.left.style,
+        reloaded.cell(row=2, column=3).border.right.style,
+    )
+
+    assert perimeter == ("thin", "thin", "thin", "thin")
+
+
+def test_outside_border_leaves_an_interior_cell_unbordered(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_outside_border(
+        start_row=1, end_row=3, start_column=1, end_column=3, style="thin"
+    )
+
+    border = roundtrip(sheet).cell(row=2, column=2).border
+    interior = (
+        border.top.style,
+        border.bottom.style,
+        border.left.style,
+        border.right.style,
+    )
+
+    assert interior == (None, None, None, None)
+
+
+def test_outside_border_leaves_the_inward_sides_of_an_edge_cell_clear(sheet, roundtrip):
+    """A cell on the top edge gets a top border only, not a box around it."""
+    WorksheetToolkit(sheet).set_outside_border(
+        start_row=1, end_row=3, start_column=1, end_column=3, style="thin"
+    )
+
+    border = roundtrip(sheet).cell(row=1, column=2).border
+    inward = (border.bottom.style, border.left.style, border.right.style)
+
+    assert inward == (None, None, None)
+
+
+@pytest.mark.xfail(
+    reason="set_border bypasses _normalize_color, persisting alpha 00 instead of FF",
+    strict=True,
+)
+def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip):
+    """The same hex handed to two methods must round trip to one ARGB string."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin", color="#ff0000")
+    toolkit.set_font(rows=1, columns=2, color="#ff0000")
+
+    reloaded = roundtrip(sheet)
+
+    assert (
+        reloaded.cell(row=1, column=1).border.top.color.rgb
+        == reloaded.cell(row=1, column=2).font.color.rgb
+    )
+
+
+@pytest.mark.xfail(
+    reason="a colour with no style records a Side that Excel draws as nothing",
+    strict=True,
+)
+def test_a_colour_with_no_style_records_no_side_at_all(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), color="#ff0000")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert border.top == Side()
+
+
+@pytest.mark.xfail(
+    reason="setting diagonal_down clears the diagonal_up flag set by an earlier call",
+    strict=True,
+)
+def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=1, columns=1, sides=("diagonal_up",), style="thin")
+    toolkit.set_border(rows=1, columns=1, sides=("diagonal_down",), style="thin")
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.diagonalUp, border.diagonalDown) == (True, True)
+
+
+@pytest.mark.xfail(reason="unknown side names are silently ignored", strict=True)
+def test_an_unknown_side_name_is_rejected(sheet):
+    with pytest.raises(ValueError):
+        WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("lft",), style="thin")
+
+
+@pytest.mark.xfail(reason="set_outside_border without a style is a silent no-op", strict=True)
+def test_outside_border_without_a_style_is_rejected(sheet):
+    with pytest.raises(ValueError):
+        WorksheetToolkit(sheet).set_outside_border(
+            start_row=1, end_row=3, start_column=1, end_column=3
+        )
