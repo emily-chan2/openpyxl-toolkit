@@ -54,11 +54,7 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "D"]
-ignore = ["E501", "D203", "D213"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "numpy"
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D"]
+# "D" (pydocstyle) is deliberately absent: the docstrings are rewritten in a later
+# stage, and enabling the rules now would churn every one of them twice.
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

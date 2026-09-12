@@ -1,7 +1,9 @@
 from numbers import Number
-from openpyxl.styles import Alignment, Border, Color, Font, PatternFill, Side
+
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 _UNCHANGED = object()
+
 
 class WorksheetToolkit:
     """
@@ -11,6 +13,7 @@ class WorksheetToolkit:
 
     Most methods return self to allow method chaining.
     """
+
     def __init__(self, worksheet):
         """Initialize a WorksheetToolkit instance for a single worksheet.
 
@@ -41,13 +44,14 @@ class WorksheetToolkit:
         - Re-save the workbook in Excel
         - Or create a new worksheet/workbook and reapply formatting using this toolkit
         """
-        if cell is None or cell == '':
-            cell = 'A1'
+        if cell is None or cell == "":
+            cell = "A1"
         self.worksheet.freeze_panes = cell
         return self
 
-    def merge_cells(self, *, range_string=None, start_row=None, start_column=None, end_row=None,
-                    end_column=None):
+    def merge_cells(
+        self, *, range_string=None, start_row=None, start_column=None, end_row=None, end_column=None
+    ):
         """Merge a rectangular range of cells in the worksheet. You can either provide
         `range_string` or all four start/end coordinates.
 
@@ -65,14 +69,29 @@ class WorksheetToolkit:
         end_column : int, optional
             Column number of the bottom-right cell of the range.
         """
-        self.worksheet.merge_cells(range_string=range_string, start_row=start_row, end_row=end_row,
-                                   start_column=start_column, end_column=end_column)
+        self.worksheet.merge_cells(
+            range_string=range_string,
+            start_row=start_row,
+            end_row=end_row,
+            start_column=start_column,
+            end_column=end_column,
+        )
         return self
 
-    def set_alignment(self, *, rows=None, columns=None, intersections_only=True,
-                      horizontal=_UNCHANGED, vertical=_UNCHANGED, text_rotation=_UNCHANGED,
-                      wrap_text=_UNCHANGED, shrink_to_fit=_UNCHANGED, indent=_UNCHANGED,
-                      reading_order=_UNCHANGED):
+    def set_alignment(
+        self,
+        *,
+        rows=None,
+        columns=None,
+        intersections_only=True,
+        horizontal=_UNCHANGED,
+        vertical=_UNCHANGED,
+        text_rotation=_UNCHANGED,
+        wrap_text=_UNCHANGED,
+        shrink_to_fit=_UNCHANGED,
+        indent=_UNCHANGED,
+        reading_order=_UNCHANGED,
+    ):
         """Set the alignment of cells defined by rows and columns. If rows and columns are empty or
         None, applies to all cells.
 
@@ -117,7 +136,9 @@ class WorksheetToolkit:
             cell.alignment = Alignment(
                 horizontal=current.horizontal if horizontal is _UNCHANGED else horizontal,
                 vertical=current.vertical if vertical is _UNCHANGED else vertical,
-                text_rotation=current.textRotation if text_rotation is _UNCHANGED else text_rotation,
+                text_rotation=current.textRotation
+                if text_rotation is _UNCHANGED
+                else text_rotation,
                 wrap_text=current.wrapText if wrap_text is _UNCHANGED else wrap_text,
                 shrink_to_fit=current.shrinkToFit if shrink_to_fit is _UNCHANGED else shrink_to_fit,
                 indent=current.indent if indent is _UNCHANGED else indent,
@@ -125,8 +146,16 @@ class WorksheetToolkit:
             )
         return self
 
-    def set_border(self, *, rows=None, columns=None, intersections_only=True,
-                   sides=('top', 'bottom', 'left', 'right'), style=_UNCHANGED, color=_UNCHANGED):
+    def set_border(
+        self,
+        *,
+        rows=None,
+        columns=None,
+        intersections_only=True,
+        sides=("top", "bottom", "left", "right"),
+        style=_UNCHANGED,
+        color=_UNCHANGED,
+    ):
         """Set borders for specified cells.
 
         Parameters
@@ -161,33 +190,39 @@ class WorksheetToolkit:
             border_kwargs = {}
 
             # Standard sides
-            for side_name in ('left', 'right', 'top', 'bottom'):
+            for side_name in ("left", "right", "top", "bottom"):
                 if side_name in sides:
                     border_kwargs[side_name] = Side(
-                        style=style if style is not _UNCHANGED else getattr(current, side_name).style,
-                        color=color.lstrip('#') if color is not _UNCHANGED else getattr(current, side_name).color
+                        style=style
+                        if style is not _UNCHANGED
+                        else getattr(current, side_name).style,
+                        color=color.lstrip("#")
+                        if color is not _UNCHANGED
+                        else getattr(current, side_name).color,
                     )
                 else:
                     border_kwargs[side_name] = getattr(current, side_name)
 
             # Diagonal side logic
-            if 'diagonal_up' in sides or 'diagonal_down' in sides:
-                border_kwargs['diagonal'] = Side(
+            if "diagonal_up" in sides or "diagonal_down" in sides:
+                border_kwargs["diagonal"] = Side(
                     style=style if style is not _UNCHANGED else current.diagonal.style,
-                    color=color.lstrip('#') if color is not _UNCHANGED else current.diagonal.color
+                    color=color.lstrip("#") if color is not _UNCHANGED else current.diagonal.color,
                 )
-                border_kwargs['diagonalUp'] = 'diagonal_up' in sides
-                border_kwargs['diagonalDown'] = 'diagonal_down' in sides
+                border_kwargs["diagonalUp"] = "diagonal_up" in sides
+                border_kwargs["diagonalDown"] = "diagonal_down" in sides
             else:
-                border_kwargs['diagonal'] = current.diagonal
-                border_kwargs['diagonalUp'] = current.diagonalUp
-                border_kwargs['diagonalDown'] = current.diagonalDown
+                border_kwargs["diagonal"] = current.diagonal
+                border_kwargs["diagonalUp"] = current.diagonalUp
+                border_kwargs["diagonalDown"] = current.diagonalDown
 
             cell.border = Border(**border_kwargs)
 
         return self
 
-    def set_outside_border(self, *, start_row, end_row, start_column, end_column, style=_UNCHANGED, color=_UNCHANGED):
+    def set_outside_border(
+        self, *, start_row, end_row, start_column, end_column, style=_UNCHANGED, color=_UNCHANGED
+    ):
         """Set a border only on the outside edges of a rectangular block of cells.
 
         Parameters
@@ -217,17 +252,47 @@ class WorksheetToolkit:
         columns = list(range(start_column, end_column + 1))
 
         # Top border
-        self.set_border(rows=[start_row], columns=columns, intersections_only=True, sides=('top',), style=style, color=color)
+        self.set_border(
+            rows=[start_row],
+            columns=columns,
+            intersections_only=True,
+            sides=("top",),
+            style=style,
+            color=color,
+        )
         # Bottom border
-        self.set_border(rows=[end_row], columns=columns, intersections_only=True, sides=('bottom',), style=style, color=color)
+        self.set_border(
+            rows=[end_row],
+            columns=columns,
+            intersections_only=True,
+            sides=("bottom",),
+            style=style,
+            color=color,
+        )
         # Left border
-        self.set_border(rows=rows, columns=[start_column], intersections_only=True, sides=('left',), style=style, color=color)
+        self.set_border(
+            rows=rows,
+            columns=[start_column],
+            intersections_only=True,
+            sides=("left",),
+            style=style,
+            color=color,
+        )
         # Right border
-        self.set_border(rows=rows, columns=[end_column], intersections_only=True, sides=('right',), style=style, color=color)
+        self.set_border(
+            rows=rows,
+            columns=[end_column],
+            intersections_only=True,
+            sides=("right",),
+            style=style,
+            color=color,
+        )
 
         return self
 
-    def set_column_best_fit(self, *, columns=None, padding=2, ignore_rows=None, ignore_formulas=True):
+    def set_column_best_fit(
+        self, *, columns=None, padding=2, ignore_rows=None, ignore_formulas=True
+    ):
         """Auto-fit columns to their contents for Calibri font.
 
         Uses the approximation:
@@ -255,10 +320,7 @@ class WorksheetToolkit:
             columns = range(1, ws.max_column + 1)
         if isinstance(columns, int):
             columns = [columns]
-        if ignore_rows is None:
-            ignore_rows = set()
-        else:
-            ignore_rows = set(ignore_rows)
+        ignore_rows = set() if ignore_rows is None else set(ignore_rows)
 
         for col in columns:
             excel_width = 0
@@ -268,14 +330,18 @@ class WorksheetToolkit:
 
                 cell = ws.cell(row=row, column=col)
 
-                if ignore_formulas and cell.data_type == 'f':
+                if ignore_formulas and cell.data_type == "f":
                     continue
 
-                value = str(cell.value) if cell.value is not None else ''
-                excel_width = max((0.09903846 * cell.font.sz + 0.00186808) * len(value), excel_width)
+                value = str(cell.value) if cell.value is not None else ""
+                excel_width = max(
+                    (0.09903846 * cell.font.sz + 0.00186808) * len(value), excel_width
+                )
 
             # Approximate Excel width using Calibri formula
-            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = excel_width + padding
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = (
+                excel_width + padding
+            )
 
         return self
 
@@ -294,7 +360,7 @@ class WorksheetToolkit:
             if isinstance(columns, Number):
                 columns = [columns]
             if columns is None:
-                columns = list(range(1, self.worksheet.max_column+1))
+                columns = list(range(1, self.worksheet.max_column + 1))
 
             for col in columns:
                 column_letter = self.worksheet.cell(row=1, column=col).column_letter
@@ -316,14 +382,22 @@ class WorksheetToolkit:
             if isinstance(rows, Number):
                 rows = [rows]
             if rows is None:
-                rows = list(range(1, self.worksheet.max_row+1))
+                rows = list(range(1, self.worksheet.max_row + 1))
 
             for row in rows:
                 self.worksheet.row_dimensions[row].height = height
         return self
 
-    def set_fill(self, *, rows=None, columns=None, intersections_only=True, fill_type=_UNCHANGED,
-                 start_color=_UNCHANGED, end_color=_UNCHANGED):
+    def set_fill(
+        self,
+        *,
+        rows=None,
+        columns=None,
+        intersections_only=True,
+        fill_type=_UNCHANGED,
+        start_color=_UNCHANGED,
+        end_color=_UNCHANGED,
+    ):
         """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
 
@@ -361,14 +435,29 @@ class WorksheetToolkit:
             current = cell.fill
             cell.fill = PatternFill(
                 fill_type=current.fill_type if fill_type is _UNCHANGED else fill_type,
-                start_color=current.start_color.rgb if start_color is _UNCHANGED else self._normalize_color(start_color),
-                end_color=current.end_color.rgb if end_color is _UNCHANGED else self._normalize_color(end_color),
+                start_color=current.start_color.rgb
+                if start_color is _UNCHANGED
+                else self._normalize_color(start_color),
+                end_color=current.end_color.rgb
+                if end_color is _UNCHANGED
+                else self._normalize_color(end_color),
             )
         return self
 
-    def set_font(self, *, rows=None, columns=None, intersections_only=True, name=_UNCHANGED,
-                 size=_UNCHANGED, bold=_UNCHANGED, italic=_UNCHANGED, underline=_UNCHANGED,
-                 strike=_UNCHANGED, color=_UNCHANGED):
+    def set_font(
+        self,
+        *,
+        rows=None,
+        columns=None,
+        intersections_only=True,
+        name=_UNCHANGED,
+        size=_UNCHANGED,
+        bold=_UNCHANGED,
+        italic=_UNCHANGED,
+        underline=_UNCHANGED,
+        strike=_UNCHANGED,
+        color=_UNCHANGED,
+    ):
         """Set the font of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
 
@@ -406,25 +495,27 @@ class WorksheetToolkit:
         """
         for cell in self._iter_cells(rows, columns, intersections_only):
             current_font = cell.font
-            cell.font = Font(name=current_font.name if name is _UNCHANGED else name,
-                            size=current_font.size if size is _UNCHANGED else size,
-                            bold=current_font.bold if bold is _UNCHANGED else bold,
-                            italic=current_font.italic if italic is _UNCHANGED else italic,
-                            underline=current_font.underline if underline is _UNCHANGED else underline,
-                            strike=current_font.strike if strike is _UNCHANGED else strike,
-                            color=current_font.color if color is _UNCHANGED else self._normalize_color(color))
+            cell.font = Font(
+                name=current_font.name if name is _UNCHANGED else name,
+                size=current_font.size if size is _UNCHANGED else size,
+                bold=current_font.bold if bold is _UNCHANGED else bold,
+                italic=current_font.italic if italic is _UNCHANGED else italic,
+                underline=current_font.underline if underline is _UNCHANGED else underline,
+                strike=current_font.strike if strike is _UNCHANGED else strike,
+                color=current_font.color if color is _UNCHANGED else self._normalize_color(color),
+            )
         return self
 
     def set_zoom_scale(self, zoom_scale=100):
         """Set the zoom scale.
-        
+
         Parameters
         ----------
         zoom_scale : int, optional
             Zoom percentage (10-400). Defaults to 100.
         """
         if not 10 <= zoom_scale <= 400:
-            raise ValueError('zoom_scale must be between 10 and 400')
+            raise ValueError("zoom_scale must be between 10 and 400")
         self.worksheet.sheet_view.zoomScale = zoom_scale
         return self
 
@@ -478,7 +569,7 @@ class WorksheetToolkit:
     def _normalize_color(self, color):
         if color is _UNCHANGED:
             return _UNCHANGED
-        hex_color = color.lstrip('#')
+        hex_color = color.lstrip("#")
         if len(hex_color) == 6:
-            hex_color = f'FF{hex_color}'
+            hex_color = f"FF{hex_color}"
         return hex_color
