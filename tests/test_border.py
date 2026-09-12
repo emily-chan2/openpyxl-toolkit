@@ -100,10 +100,6 @@ def test_outside_border_leaves_the_inward_sides_of_an_edge_cell_clear(sheet, rou
     assert inward == (None, None, None)
 
 
-@pytest.mark.xfail(
-    reason="set_border bypasses _normalize_color, persisting alpha 00 instead of FF",
-    strict=True,
-)
 def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip):
     """The same hex handed to two methods must round trip to one ARGB string."""
     toolkit = WorksheetToolkit(sheet)
