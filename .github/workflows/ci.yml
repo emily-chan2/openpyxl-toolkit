@@ -5,7 +5,10 @@ on:
     branches: [main]
   pull_request:
 
-permissions: {}
+# Deny by default, then grant only what the jobs need. actions/checkout needs
+# contents:read to clone a private repository; a public one needs no token at all.
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
