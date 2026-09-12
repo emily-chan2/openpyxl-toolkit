@@ -31,6 +31,21 @@ def _check_bounds(rows=(), columns=()):
     _check_indexes(columns, _MAX_COLUMN, "column")
 
 
+def _has_color(value):
+    """True when a colour carries something the user chose.
+
+    A cell that was never coloured reports the ARGB default rather than nothing,
+    so an absent colour and an explicit one are only distinguishable by value.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.upper() not in ("", "00000000")
+    if getattr(value, "type", None) != "rgb":
+        return True  # a theme, indexed or automatic colour is a real choice
+    return (value.rgb or "").upper() not in ("", "00000000")
+
+
 def _normalize_color(color):
     if color is _UNCHANGED:
         return _UNCHANGED
@@ -223,6 +238,9 @@ class WorksheetToolkit:
         if isinstance(sides, str):
             sides = tuple([sides])
 
+        # Built first and assigned afterwards, so a cell that cannot be given the
+        # requested border does not leave the rest of the range half-drawn.
+        updates = []
         for cell in self._iter_cells(rows, columns, intersections_only):
             current = cell.border
             border_kwargs = {}
@@ -230,10 +248,16 @@ class WorksheetToolkit:
             # Standard sides
             for side_name in ("left", "right", "top", "bottom"):
                 if side_name in sides:
+                    new_style = (
+                        style if style is not _UNCHANGED else getattr(current, side_name).style
+                    )
+                    if color is not _UNCHANGED and new_style is None:
+                        raise ValueError(
+                            f"{cell.coordinate} has no {side_name} border, so a colour on its "
+                            f"own would not show. Pass style='thin' as well."
+                        )
                     border_kwargs[side_name] = Side(
-                        style=style
-                        if style is not _UNCHANGED
-                        else getattr(current, side_name).style,
+                        style=new_style,
                         color=color.lstrip("#")
                         if color is not _UNCHANGED
                         else getattr(current, side_name).color,
@@ -243,8 +267,14 @@ class WorksheetToolkit:
 
             # Diagonal side logic
             if "diagonal_up" in sides or "diagonal_down" in sides:
+                new_style = style if style is not _UNCHANGED else current.diagonal.style
+                if color is not _UNCHANGED and new_style is None:
+                    raise ValueError(
+                        f"{cell.coordinate} has no diagonal border, so a colour on its own "
+                        f"would not show. Pass style='thin' as well."
+                    )
                 border_kwargs["diagonal"] = Side(
-                    style=style if style is not _UNCHANGED else current.diagonal.style,
+                    style=new_style,
                     color=color.lstrip("#") if color is not _UNCHANGED else current.diagonal.color,
                 )
                 border_kwargs["diagonalUp"] = "diagonal_up" in sides
@@ -254,7 +284,10 @@ class WorksheetToolkit:
                 border_kwargs["diagonalUp"] = current.diagonalUp
                 border_kwargs["diagonalDown"] = current.diagonalDown
 
-            cell.border = Border(**border_kwargs)
+            updates.append((cell, Border(**border_kwargs)))
+
+        for cell, border in updates:
+            cell.border = border
 
         return self
 
@@ -512,17 +545,31 @@ class WorksheetToolkit:
                 # so anything left unspecified falls back to PatternFill's default.
                 current_type = current_start = current_end = None
 
+            new_type = current_type if fill_type is _UNCHANGED else fill_type
+            new_start = (
+                current_start if start_color is _UNCHANGED else _normalize_color(start_color)
+            )
+
+            if start_color is not _UNCHANGED and new_type is None:
+                raise ValueError(
+                    f"{cell.coordinate} has no fill pattern, so a colour on its own would "
+                    f"not show. Pass fill_type='solid' as well."
+                )
+            if fill_type not in (_UNCHANGED, None) and not _has_color(new_start):
+                raise ValueError(
+                    f"{cell.coordinate} has no fill colour, so fill_type={fill_type!r} alone "
+                    f"would paint it black. Pass start_color as well."
+                )
+
             updates.append(
                 (
                     cell,
                     PatternFill(
-                        fill_type=current_type if fill_type is _UNCHANGED else fill_type,
+                        fill_type=new_type,
                         # The Color object is passed through rather than its .rgb:
                         # for a theme, indexed or automatic colour that attribute is
                         # the descriptor itself, which PatternFill rejects.
-                        start_color=current_start
-                        if start_color is _UNCHANGED
-                        else _normalize_color(start_color),
+                        start_color=new_start,
                         end_color=current_end
                         if end_color is _UNCHANGED
                         else _normalize_color(end_color),
