@@ -1,6 +1,5 @@
 """Behaviour of ``WorksheetToolkit.set_alignment``, asserted after a real round trip."""
 
-import pytest
 from openpyxl.styles import Alignment
 
 from openpyxl_toolkit import WorksheetToolkit
@@ -184,7 +183,6 @@ def test_returns_the_toolkit_for_chaining(sheet):
     assert toolkit.set_alignment(rows=1, columns=1, horizontal="center") is toolkit
 
 
-@pytest.mark.xfail(reason="set_alignment rebuilds Alignment and drops justifyLastLine", strict=True)
 def test_justify_last_line_survives_an_unrelated_alignment_change(sheet, roundtrip):
     sheet["A1"].alignment = Alignment(horizontal="left", justifyLastLine=True)
 
@@ -193,7 +191,6 @@ def test_justify_last_line_survives_an_unrelated_alignment_change(sheet, roundtr
     assert roundtrip(sheet)["A1"].alignment.justifyLastLine is True
 
 
-@pytest.mark.xfail(reason="set_alignment rebuilds Alignment and drops relativeIndent", strict=True)
 def test_relative_indent_survives_an_unrelated_alignment_change(sheet, roundtrip):
     sheet["A1"].alignment = Alignment(horizontal="left", relativeIndent=2)
 
@@ -202,9 +199,6 @@ def test_relative_indent_survives_an_unrelated_alignment_change(sheet, roundtrip
     assert roundtrip(sheet)["A1"].alignment.relativeIndent == 2
 
 
-@pytest.mark.xfail(
-    reason="set_alignment() with no arguments still rewrites every cell", strict=True
-)
 def test_call_with_no_keyword_arguments_changes_nothing(sheet, roundtrip):
     original = Alignment(
         horizontal="left",

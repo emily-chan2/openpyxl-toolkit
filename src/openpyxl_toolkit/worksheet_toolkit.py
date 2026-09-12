@@ -1,7 +1,7 @@
 from copy import copy
 from numbers import Number
 
-from openpyxl.styles import DEFAULT_FONT, Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 _UNCHANGED = object()
@@ -52,7 +52,7 @@ def _normalize_color(color):
     if color is None:
         # None clears the colour; _UNCHANGED is how "leave it alone" is spelled.
         return None
-    hex_color = color.lstrip("#")
+    hex_color = color.lstrip("#").upper()
     if len(hex_color) == 6:
         hex_color = f"FF{hex_color}"
     return hex_color
@@ -184,19 +184,28 @@ class WorksheetToolkit:
         >>> toolkit.set_alignment(rows=[1, 2], columns=[1, 2], intersections_only=True,
         >>>                       text_rotation=45)
         """
+        parameters = {
+            "horizontal": horizontal,
+            "vertical": vertical,
+            "text_rotation": text_rotation,
+            "wrap_text": wrap_text,
+            "shrink_to_fit": shrink_to_fit,
+            "indent": indent,
+            "readingOrder": reading_order,
+        }
+
+        updates = []
         for cell in self._iter_cells(rows, columns, intersections_only):
-            current = cell.alignment
-            cell.alignment = Alignment(
-                horizontal=current.horizontal if horizontal is _UNCHANGED else horizontal,
-                vertical=current.vertical if vertical is _UNCHANGED else vertical,
-                text_rotation=current.textRotation
-                if text_rotation is _UNCHANGED
-                else text_rotation,
-                wrap_text=current.wrapText if wrap_text is _UNCHANGED else wrap_text,
-                shrink_to_fit=current.shrinkToFit if shrink_to_fit is _UNCHANGED else shrink_to_fit,
-                indent=current.indent if indent is _UNCHANGED else indent,
-                readingOrder=current.readingOrder if reading_order is _UNCHANGED else reading_order,
-            )
+            # Copy and override for the same reason as set_font: rebuilding from
+            # the arguments drops justifyLastLine and relativeIndent.
+            new_alignment = copy(cell.alignment)
+            for attribute, value in parameters.items():
+                if value is not _UNCHANGED:
+                    setattr(new_alignment, attribute, value)
+            updates.append((cell, new_alignment))
+
+        for cell, alignment in updates:
+            cell.alignment = alignment
         return self
 
     def set_border(
@@ -258,7 +267,7 @@ class WorksheetToolkit:
                         )
                     border_kwargs[side_name] = Side(
                         style=new_style,
-                        color=color.lstrip("#")
+                        color=_normalize_color(color)
                         if color is not _UNCHANGED
                         else getattr(current, side_name).color,
                     )
@@ -275,7 +284,9 @@ class WorksheetToolkit:
                     )
                 border_kwargs["diagonal"] = Side(
                     style=new_style,
-                    color=color.lstrip("#") if color is not _UNCHANGED else current.diagonal.color,
+                    color=_normalize_color(color)
+                    if color is not _UNCHANGED
+                    else current.diagonal.color,
                 )
                 border_kwargs["diagonalUp"] = "diagonal_up" in sides
                 border_kwargs["diagonalDown"] = "diagonal_down" in sides
@@ -630,17 +641,29 @@ class WorksheetToolkit:
         >>> # Set the font color for all of row 1 and 2, and all of columns 1 and 2
         >>> set_font(rows=[1, 2], columns=[1, 2], color='#000000')
         """
+        parameters = {
+            "name": name,
+            "size": size,
+            "bold": bold,
+            "italic": italic,
+            "underline": underline,
+            "strike": strike,
+            "color": _normalize_color(color),
+        }
+
+        updates = []
         for cell in self._iter_cells(rows, columns, intersections_only):
-            current_font = cell.font
-            cell.font = Font(
-                name=current_font.name if name is _UNCHANGED else name,
-                size=current_font.size if size is _UNCHANGED else size,
-                bold=current_font.bold if bold is _UNCHANGED else bold,
-                italic=current_font.italic if italic is _UNCHANGED else italic,
-                underline=current_font.underline if underline is _UNCHANGED else underline,
-                strike=current_font.strike if strike is _UNCHANGED else strike,
-                color=current_font.color if color is _UNCHANGED else _normalize_color(color),
-            )
+            # Copy and override, rather than build a new Font from the arguments:
+            # a fresh Font would silently reset every attribute this method does
+            # not expose, such as vertAlign and scheme.
+            new_font = copy(cell.font)
+            for attribute, value in parameters.items():
+                if value is not _UNCHANGED:
+                    setattr(new_font, attribute, value)
+            updates.append((cell, new_font))
+
+        for cell, font in updates:
+            cell.font = font
         return self
 
     def set_zoom_scale(self, zoom_scale=100):

@@ -1,5 +1,7 @@
 """Behaviour of WorksheetToolkit.set_font, asserted after a real save/reload cycle."""
 
+from copy import copy
+
 import pytest
 from openpyxl.styles import Font
 
@@ -114,7 +116,6 @@ def test_set_font_returns_the_toolkit_for_chaining(sheet):
     assert toolkit.set_font(bold=True) is toolkit
 
 
-@pytest.mark.xfail(reason="hex colours are not upper-cased before being stored", strict=True)
 def test_lowercase_hex_colour_is_stored_as_upper_case_argb(sheet, roundtrip):
     WorksheetToolkit(sheet).set_font(color="#ff0000")
     assert roundtrip(sheet)["A1"].font.color.rgb == "FFFF0000"
@@ -128,18 +129,20 @@ def test_colour_none_clears_a_previously_set_colour(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].font.color is None
 
 
-@pytest.mark.xfail(reason="a call with no style arguments rewrites the font record", strict=True)
 def test_a_call_with_no_style_arguments_leaves_the_font_untouched(sheet, roundtrip):
-    """set_font() with nothing to set must produce the same file as never calling it."""
+    """set_font() with nothing to set must produce the same file as never calling it.
+
+    Both sides are copied out of their StyleProxy first: two proxies never compare
+    equal to each other, even when they wrap identical fonts.
+    """
     sheet["A1"] = "value"
-    untouched = roundtrip(sheet)["A1"].font
+    untouched = copy(roundtrip(sheet)["A1"].font)
 
     WorksheetToolkit(sheet).set_font()
 
-    assert roundtrip(sheet)["A1"].font == untouched
+    assert copy(roundtrip(sheet)["A1"].font) == untouched
 
 
-@pytest.mark.xfail(reason="a new Font is built, dropping unexposed attributes", strict=True)
 def test_vert_align_survives_a_change_to_bold_alone(sheet, roundtrip):
     sheet["A1"].font = Font(vertAlign="superscript")
 
@@ -148,7 +151,6 @@ def test_vert_align_survives_a_change_to_bold_alone(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].font.vertAlign == "superscript"
 
 
-@pytest.mark.xfail(reason="a new Font is built, dropping unexposed attributes", strict=True)
 def test_scheme_survives_a_change_to_bold_alone(sheet, roundtrip):
     sheet["A1"].font = Font(scheme="major")
 
