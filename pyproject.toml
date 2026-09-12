@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openpyxl-toolkit"
+dynamic = ["version"]
+description = "Chainable formatting helpers for openpyxl worksheets that merge styles instead of replacing them."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Emily Chan" }]
+keywords = ["openpyxl", "excel", "xlsx", "spreadsheet", "formatting", "styles"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Financial :: Spreadsheet",
+    "Typing :: Typed",
+]
+dependencies = ["openpyxl>=3.1"]
+
+[project.urls]
+Homepage = "https://github.com/emily-chan2/openpyxl-toolkit"
+Source = "https://github.com/emily-chan2/openpyxl-toolkit"
+Issues = "https://github.com/emily-chan2/openpyxl-toolkit/issues"
+Changelog = "https://github.com/emily-chan2/openpyxl-toolkit/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.hatch.version]
+path = "src/openpyxl_toolkit/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openpyxl_toolkit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+ignore = ["E501", "D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
