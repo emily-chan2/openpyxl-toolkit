@@ -148,13 +148,47 @@ def test_a_gradient_filled_cell_can_be_given_a_solid_fill(sheet, roundtrip):
     assert (fill.fill_type, fill.start_color.rgb.upper()) == ("solid", "FF00FF00")
 
 
-@pytest.mark.xfail(reason="a colour without a fill_type produces an invisible fill", strict=True)
-def test_a_colour_on_its_own_produces_a_visible_fill(sheet, roundtrip):
-    """The docstring's own example: fill row 1 with pink, no fill_type given."""
+def test_a_colour_on_its_own_is_rejected(sheet):
+    """A cell with no pattern cannot show a colour, so the call says so instead."""
     _grid(sheet)
-    WorksheetToolkit(sheet).set_fill(rows=1, start_color="#f4d2d3")
+    with pytest.raises(ValueError, match="fill_type='solid'"):
+        WorksheetToolkit(sheet).set_fill(rows=1, start_color="#f4d2d3")
 
-    assert roundtrip(sheet)["A1"].fill.fill_type == "solid"
+
+def test_a_colour_on_its_own_is_fine_when_the_cell_is_already_filled(sheet, roundtrip):
+    _grid(sheet)
+    sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
+
+    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, start_color="#f4d2d3")
+
+    assert roundtrip(sheet)["A1"].fill.start_color.rgb.upper() == "FFF4D2D3"
+
+
+def test_a_pattern_with_no_colour_is_rejected(sheet):
+    """The mirror case: solid with no colour paints the cell black."""
+    _grid(sheet)
+    with pytest.raises(ValueError, match="start_color"):
+        WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")
+
+
+def test_a_pattern_with_no_colour_is_fine_when_the_cell_is_already_coloured(sheet, roundtrip):
+    _grid(sheet)
+    sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
+
+    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="lightGrid")
+
+    reloaded = roundtrip(sheet)["A1"].fill
+    assert (reloaded.fill_type, reloaded.start_color.rgb) == ("lightGrid", "FF00FF00")
+
+
+def test_removing_a_fill_is_still_allowed(sheet, roundtrip):
+    """fill_type=None means remove it, and must not trip the colour checks."""
+    _grid(sheet)
+    sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
+
+    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type=None)
+
+    assert roundtrip(sheet)["A1"].fill.fill_type is None
 
 
 def test_a_failing_call_leaves_no_cell_in_the_range_painted(sheet, roundtrip, monkeypatch):

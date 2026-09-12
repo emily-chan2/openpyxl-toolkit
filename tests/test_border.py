@@ -5,7 +5,7 @@ memory is not a border.
 """
 
 import pytest
-from openpyxl.styles import Side
+from openpyxl.styles import Border, Side
 
 from openpyxl_toolkit import WorksheetToolkit
 
@@ -118,16 +118,37 @@ def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip
     )
 
 
-@pytest.mark.xfail(
-    reason="a colour with no style records a Side that Excel draws as nothing",
-    strict=True,
-)
-def test_a_colour_with_no_style_records_no_side_at_all(sheet, roundtrip):
+def test_a_colour_with_no_style_is_rejected(sheet):
+    """A side with no style draws nothing, so a colour alone cannot show."""
+    with pytest.raises(ValueError, match="style='thin'"):
+        WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), color="#ff0000")
+
+
+def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roundtrip):
+    sheet.cell(row=1, column=1, value="x").border = Border(top=Side(style="thin"))
+
     WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), color="#ff0000")
 
-    border = roundtrip(sheet).cell(row=1, column=1).border
+    top = roundtrip(sheet).cell(row=1, column=1).border.top
+    assert top.style == "thin" and top.color.rgb.lower().endswith("ff0000")
 
-    assert border.top == Side()
+
+def test_a_style_with_no_colour_is_allowed(sheet, roundtrip):
+    """Excel draws an uncoloured border in the automatic colour, which is what we want."""
+    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), style="thin")
+
+    assert roundtrip(sheet).cell(row=1, column=1).border.top.style == "thin"
+
+
+def test_a_rejected_border_leaves_the_whole_range_untouched(sheet, roundtrip):
+    for c in (1, 2, 3):
+        sheet.cell(row=1, column=c, value="x")
+    sheet["A1"].border = Border(top=Side(style="thin"))
+
+    with pytest.raises(ValueError):
+        WorksheetToolkit(sheet).set_border(rows=1, sides=("top",), color="#ff0000")
+
+    assert roundtrip(sheet)["A1"].border.top.color is None
 
 
 @pytest.mark.xfail(
