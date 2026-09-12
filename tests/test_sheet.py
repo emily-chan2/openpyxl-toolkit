@@ -209,3 +209,64 @@ def test_unfreezing_leaves_no_pane_state_behind(sheet, roundtrip):
     reloaded = roundtrip(sheet)
     assert not reloaded.freeze_panes
     assert [selection.pane for selection in reloaded.sheet_view.selection] == [None]
+
+
+def test_a_column_beyond_the_grid_is_rejected(sheet):
+    """openpyxl creates such a cell unvalidated, and the workbook can then never be saved."""
+    with pytest.raises(ValueError, match="column 20000"):
+        WorksheetToolkit(sheet).set_font(rows=1, columns=20000, bold=True)
+
+
+def test_a_row_beyond_the_grid_is_rejected(sheet):
+    with pytest.raises(ValueError, match="row 2000000"):
+        WorksheetToolkit(sheet).set_font(rows=2000000, columns=1, bold=True)
+
+
+def test_a_column_of_zero_is_rejected(sheet):
+    with pytest.raises(ValueError, match="column 0"):
+        WorksheetToolkit(sheet).set_font(rows=1, columns=0, bold=True)
+
+
+def test_rejecting_a_bad_index_leaves_the_workbook_saveable(sheet, roundtrip):
+    """The point of rejecting early: a materialised out-of-range cell is unrecoverable."""
+    _grid(sheet, 2, 2)
+    toolkit = WorksheetToolkit(sheet)
+
+    with pytest.raises(ValueError):
+        toolkit.set_font(rows=1, columns=20000, bold=True)
+
+    assert roundtrip(sheet)["A1"].value == "r1c1"
+
+
+def test_the_dimension_setters_are_bounds_checked_too(sheet):
+    """16385 is past Excel's limit but inside get_column_letter's, so only our check catches it."""
+    toolkit = WorksheetToolkit(sheet)
+    for call in (
+        lambda: toolkit.set_column_width(columns=16385, width=12),
+        lambda: toolkit.set_column_best_fit(columns=16385),
+    ):
+        with pytest.raises(ValueError, match="outside the worksheet"):
+            call()
+
+
+def test_set_row_height_is_bounds_checked(sheet):
+    with pytest.raises(ValueError, match="outside the worksheet"):
+        WorksheetToolkit(sheet).set_row_height(rows=2000000, height=20)
+
+
+def test_best_fit_rejects_a_bad_column_before_materialising_it(sheet, roundtrip):
+    """get_column_letter raises only after ws.cell has already made the sheet unsaveable."""
+    _grid(sheet, 2, 2)
+    with pytest.raises(ValueError):
+        WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 20000])
+
+    assert roundtrip(sheet)["A1"].value == "r1c1"
+
+
+def test_a_fractional_index_is_rejected(sheet):
+    """A float index writes a cell reference like A1.5 that openpyxl cannot reload."""
+    toolkit = WorksheetToolkit(sheet)
+    with pytest.raises(TypeError, match="must be an integer"):
+        toolkit.set_font(rows=1.5, columns=1, bold=True)
+    with pytest.raises(TypeError, match="must be an integer"):
+        toolkit.set_row_height(rows=1.5, height=20)
