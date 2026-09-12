@@ -33,7 +33,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   workbook could then never be saved. Non-integer indexes raise `TypeError`: a float
   wrote a cell reference such as `A1.5` that openpyxl could not read back.
 
+### Changed
+
+- `set_column_best_fit` measures text with the real per-character advances of the
+  font instead of treating every character as the same width, and uses Excel's own
+  formula to convert that to a column width. Text columns come out 10-25% narrower,
+  and a column of narrow letters is no longer as wide as one of capitals. Built-in
+  metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman, Courier New,
+  Cambria, Verdana, Georgia, Tahoma and Futura; anything else falls back to Calibri
+  or can be handled with the new `measure` argument.
+- `set_column_best_fit`'s `padding` now defaults to 0. The old default of 2 was
+  making up for the formula not counting Excel's own 5 pixels of cell padding,
+  which it now does.
+
 ### Added
+
+- `min_width` and `max_width` on `set_column_best_fit`, and a `measure` hook for
+  supplying metrics for a face with no built-in table.
 
 - Packaged the project for distribution: `src/` layout, `pyproject.toml` (hatchling),
   and `openpyxl_toolkit` as the import name. `WorksheetToolkit` is re-exported from the

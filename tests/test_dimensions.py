@@ -281,23 +281,38 @@ def test_row_height_without_a_height_is_rejected(sheet):
         WorksheetToolkit(sheet).set_row_height(rows=1)
 
 
-def test_best_fit_uses_the_workbook_default_size_not_a_hardcoded_eleven(sheet):
-    """Font(bold=True) leaves sz unset, so the fallback decides the width."""
-    sheet.parent._fonts[0] = Font(name="Arial", sz=20)
+def test_best_fit_measures_an_unstyled_cell_at_the_workbook_default_size(sheet, roundtrip):
+    """A cell with no font of its own inherits the workbook's size, not a hardcoded 11."""
+    sheet.parent._fonts[0] = Font(name="Calibri", sz=22)
     sheet["A1"] = "hello world"
-    sheet["A1"].font = Font(bold=True)
+    sheet["B1"] = "hello world"
+    sheet["B1"].font = Font(sz=22)
+    sheet["C1"] = "hello world"
+    sheet["C1"].font = Font(sz=11)
 
-    WorksheetToolkit(sheet).set_column_best_fit(columns=1)
-    at_20pt = sheet.column_dimensions["A"].width
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2, 3])
 
-    sheet.parent._fonts[0] = Font(name="Arial", sz=8)
-    WorksheetToolkit(sheet).set_column_best_fit(columns=1)
+    ws = roundtrip(sheet)
+    inherited = ws.column_dimensions["A"].width
+    assert inherited == pytest.approx(ws.column_dimensions["B"].width)
+    assert inherited > ws.column_dimensions["C"].width
 
-    assert at_20pt > sheet.column_dimensions["A"].width
+
+def test_best_fit_widens_for_a_cell_font_larger_than_the_workbook_default(sheet, roundtrip):
+    """The width unit is the workbook's font, so a bigger cell font needs more units."""
+    sheet.parent._fonts[0] = Font(name="Calibri", sz=11)
+    sheet["A1"] = "hello world"
+    sheet["B1"] = "hello world"
+    sheet["B1"].font = Font(sz=22)
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["B"].width > ws.column_dimensions["A"].width * 1.8
 
 
 def test_best_fit_renders_a_time_in_twelve_hour_form_when_the_format_says_so(sheet, roundtrip):
-    """'2:07 PM' is shorter than the stored '2026-09-05 14:07:03'."""
+    """'2:07 PM' is shorter than '14:07:03', and shorter still than the stored value."""
     sheet["A1"] = datetime(2026, 9, 5, 14, 7, 3)
     sheet["A1"].number_format = "h:mm am/pm"
     sheet["B1"] = "2:07 PM"
@@ -325,3 +340,59 @@ def test_row_height_is_clamped_to_the_excel_maximum(sheet, roundtrip):
     WorksheetToolkit(sheet).set_row_height(rows=1, height=500)
 
     assert roundtrip(sheet).row_dimensions[1].height == 409
+
+
+def test_best_fit_matches_the_definition_of_a_column_width_unit(sheet, roundtrip):
+    """A width of N means N digits fit, plus Excel's 5 pixels of cell padding."""
+    for count in (1, 10, 20):
+        sheet.cell(row=1, column=count, value="0" * count)
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 10, 20])
+
+    ws = roundtrip(sheet)
+    for count, letter in ((1, "A"), (10, "J"), (20, "T")):
+        assert ws.column_dimensions[letter].width == pytest.approx(count + 5 / 7, abs=0.01)
+
+
+def test_best_fit_distinguishes_narrow_from_wide_characters(sheet, roundtrip):
+    sheet["A1"] = "i" * 10
+    sheet["B1"] = "W" * 10
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["B"].width > ws.column_dimensions["A"].width * 3
+
+
+def test_best_fit_honours_min_and_max_width(sheet, roundtrip):
+    sheet["A1"] = "x"
+    sheet["B1"] = "a very long piece of text indeed"
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2], min_width=12, max_width=20)
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["A"].width == 12
+    assert ws.column_dimensions["B"].width == 20
+
+
+def test_best_fit_accepts_a_custom_measure(sheet, roundtrip):
+    """A caller with metrics for another font supplies its own measurement."""
+    sheet["A1"] = "hello"
+
+    WorksheetToolkit(sheet).set_column_best_fit(
+        columns=1, measure=lambda text, font, normal_font: len(text) * 2
+    )
+
+    assert roundtrip(sheet).column_dimensions["A"].width == 10
+
+
+def test_best_fit_uses_the_metrics_of_the_cell_font(sheet, roundtrip):
+    """Courier New is monospaced and wider than Calibri, so the same text needs more room."""
+    sheet["A1"] = "iiiiiiiiii"
+    sheet["B1"] = "iiiiiiiiii"
+    sheet["B1"].font = Font(name="Courier New")
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["B"].width > ws.column_dimensions["A"].width * 1.5
