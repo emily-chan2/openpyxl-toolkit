@@ -1,4 +1,5 @@
 from copy import copy
+from datetime import date, datetime, time
 from numbers import Number
 
 from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
@@ -11,6 +12,28 @@ _UNCHANGED = object()
 # get_column_letter is not a substitute: it accepts up to ZZZ (18278).
 _MAX_ROW = 1_048_576
 _MAX_COLUMN = 16_384
+
+# Excel refuses a column wider than this and clips a row taller than it.
+_MAX_COLUMN_WIDTH = 255
+_MAX_ROW_HEIGHT = 409
+
+# Excel date tokens, longest first so "yyyy" is matched before "yy". Anything not
+# listed here is copied through, which is right for separators and literal text.
+_DATE_TOKENS = (
+    ("yyyy", "%Y"),
+    ("yy", "%y"),
+    ("mmmm", "%B"),
+    ("mmm", "%b"),
+    ("dddd", "%A"),
+    ("ddd", "%a"),
+    ("dd", "%d"),
+    ("d", "%-d"),
+    ("hh", "%H"),
+    ("h", "%-H"),
+    ("ss", "%S"),
+    ("s", "%-S"),
+    ("am/pm", "%p"),
+)
 
 
 def _check_indexes(indexes, limit, label):
@@ -29,6 +52,56 @@ def _check_indexes(indexes, limit, label):
 def _check_bounds(rows=(), columns=()):
     _check_indexes(rows, _MAX_ROW, "row")
     _check_indexes(columns, _MAX_COLUMN, "column")
+
+
+def _displayed_text(cell):
+    """The text Excel shows in a cell, as far as it can be worked out cheaply.
+
+    Only dates and times are translated. Excel's number formats are a language of
+    their own, and a partial implementation of the rest would mis-measure in ways
+    that are harder to notice than the raw value, so everything else is measured
+    as it is stored.
+    """
+    value = cell.value
+    if value is None:
+        return ""
+    if not isinstance(value, (datetime, date, time)):
+        return str(value)
+
+    code = (cell.number_format or "").lower()
+    if not code or code == "general":
+        return str(value)
+
+    # An hour is written 12-hour when the code also carries AM/PM.
+    twelve_hour = "am/pm" in code
+    # A minute token looks identical to a month token; Excel tells them apart by
+    # whether an hour came first, so track that while walking the code.
+    pattern, index, after_hour = "", 0, False
+    while index < len(code):
+        for token, directive in _DATE_TOKENS:
+            if code.startswith(token, index):
+                if token in ("hh", "h"):
+                    after_hour = True
+                    if twelve_hour:
+                        directive = "%I" if token == "hh" else "%-I"
+                pattern += directive
+                index += len(token)
+                break
+        else:
+            if code.startswith("mm", index):
+                pattern += "%M" if after_hour else "%m"
+                index += 2
+            elif code.startswith("m", index):
+                pattern += "%-M" if after_hour else "%-m"
+                index += 1
+            else:
+                pattern += code[index]
+                index += 1
+
+    try:
+        return value.strftime(pattern)
+    except ValueError:
+        return str(value)
 
 
 def _has_color(value):
@@ -411,6 +484,7 @@ class WorksheetToolkit:
 
         for col in columns:
             excel_width = 0
+            measured_anything = False
             for row in range(1, ws.max_row + 1):
                 if row in ignore_rows:
                     continue
@@ -420,14 +494,25 @@ class WorksheetToolkit:
                 if ignore_formulas and cell.data_type == "f":
                     continue
 
-                value = str(cell.value) if cell.value is not None else ""
+                if cell.value is None:
+                    continue
+
+                measured_anything = True
+                value = _displayed_text(cell)
                 # A cell that inherits the workbook font reports no size of its own,
                 # which Font(bold=True) alone is enough to produce.
                 size = default_size if cell.font.sz is None else cell.font.sz
                 excel_width = max((0.09903846 * size + 0.00186808) * len(value), excel_width)
 
+            if not measured_anything:
+                # Nothing to fit. Leaving the column alone matters because a width
+                # set deliberately beforehand would otherwise be cut to the padding.
+                continue
+
             # Approximate Excel width using Calibri formula
-            ws.column_dimensions[get_column_letter(col)].width = excel_width + padding
+            ws.column_dimensions[get_column_letter(col)].width = min(
+                excel_width + padding, _MAX_COLUMN_WIDTH
+            )
 
         return self
 
@@ -450,6 +535,7 @@ class WorksheetToolkit:
 
             columns = list(columns)
             _check_bounds(columns=columns)
+            width = min(width, _MAX_COLUMN_WIDTH)
             for col in columns:
                 # get_column_letter rather than a cell lookup: row 1 of the column
                 # may be a MergedCell, which has no column_letter at all.
@@ -475,6 +561,7 @@ class WorksheetToolkit:
 
             rows = list(rows)
             _check_bounds(rows=rows)
+            height = min(height, _MAX_ROW_HEIGHT)
             for row in rows:
                 self.worksheet.row_dimensions[row].height = height
         return self
