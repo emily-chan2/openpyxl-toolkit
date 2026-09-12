@@ -34,7 +34,13 @@ Issues = "https://github.com/emily-chan2/openpyxl-toolkit/issues"
 Changelog = "https://github.com/emily-chan2/openpyxl-toolkit/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6"]
+# Split so CI installs exactly what each job needs, from the same source of
+# truth a developer installs locally. Ruff is pinned exactly on purpose: a
+# formatter that floats will eventually reformat differently from the version
+# in your editor, and the lint job goes red for no real reason.
+lint = ["ruff==0.16.7"]
+test = ["pytest>=8"]
+dev = [{ include-group = "lint" }, { include-group = "test" }]
 
 [tool.hatch.version]
 path = "src/openpyxl_toolkit/__init__.py"
