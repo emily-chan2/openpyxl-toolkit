@@ -206,7 +206,6 @@ def test_best_fit_handles_a_font_with_no_explicit_size(sheet, roundtrip):
     )
 
 
-@pytest.mark.xfail(reason="an empty column is collapsed to the bare padding value", strict=True)
 def test_best_fit_leaves_a_deliberate_width_on_an_empty_column_alone(sheet, roundtrip):
     sheet["A1"] = "data"
 
@@ -218,7 +217,6 @@ def test_best_fit_leaves_a_deliberate_width_on_an_empty_column_alone(sheet, roun
     assert ws.column_dimensions["C"].width == 30
 
 
-@pytest.mark.xfail(reason="a date is measured as str(value), not as it is displayed", strict=True)
 def test_best_fit_sizes_a_date_from_its_displayed_form(sheet, roundtrip):
     sheet["A1"] = datetime(2026, 9, 10)
     sheet["A1"].number_format = "yyyy-mm-dd"
@@ -232,7 +230,6 @@ def test_best_fit_sizes_a_date_from_its_displayed_form(sheet, roundtrip):
     )
 
 
-@pytest.mark.xfail(reason="widths above Excel's 255 maximum are not clamped", strict=True)
 def test_column_width_is_clamped_to_the_excel_maximum(sheet, roundtrip):
     WorksheetToolkit(sheet).set_column_width(columns=1, width=300)
 
@@ -297,3 +294,34 @@ def test_best_fit_uses_the_workbook_default_size_not_a_hardcoded_eleven(sheet):
     WorksheetToolkit(sheet).set_column_best_fit(columns=1)
 
     assert at_20pt > sheet.column_dimensions["A"].width
+
+
+def test_best_fit_renders_a_time_in_twelve_hour_form_when_the_format_says_so(sheet, roundtrip):
+    """'2:07 PM' is shorter than the stored '2026-09-05 14:07:03'."""
+    sheet["A1"] = datetime(2026, 9, 5, 14, 7, 3)
+    sheet["A1"].number_format = "h:mm am/pm"
+    sheet["B1"] = "2:07 PM"
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["A"].width == pytest.approx(
+        ws.column_dimensions["B"].width, abs=1.0
+    )
+
+
+def test_best_fit_measures_a_general_formatted_value_as_stored(sheet, roundtrip):
+    """Only dates are translated; anything else is measured as it is stored."""
+    sheet["A1"] = 1234.5678
+    sheet["B1"] = "1234.5678"
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["A"].width == pytest.approx(ws.column_dimensions["B"].width)
+
+
+def test_row_height_is_clamped_to_the_excel_maximum(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_row_height(rows=1, height=500)
+
+    assert roundtrip(sheet).row_dimensions[1].height == 409
