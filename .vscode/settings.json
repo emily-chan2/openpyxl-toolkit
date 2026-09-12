@@ -1,0 +1,18 @@
+{
+  // Ruff formats Python on save, and fixes what it safely can.
+  // The rules themselves live in pyproject.toml, so the editor, the command
+  // line and CI all read the same configuration.
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // Run the suite from the Testing sidebar instead of the terminal.
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false
+}
