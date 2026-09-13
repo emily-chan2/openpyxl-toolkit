@@ -4,6 +4,7 @@ from numbers import Number
 
 from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.views import Selection
 
 from . import _metrics
 
@@ -175,8 +176,12 @@ class WorksheetToolkit:
         - Or create a new worksheet/workbook and reapply formatting using this toolkit
         """
         if cell is None or cell == "":
-            cell = "A1"
-        self.worksheet.freeze_panes = cell
+            # openpyxl clears the pane but leaves the three split selections behind,
+            # which is what makes some versions of Excel offer to repair the file.
+            self.worksheet.freeze_panes = None
+            self.worksheet.sheet_view.selection = [Selection()]
+        else:
+            self.worksheet.freeze_panes = cell
         return self
 
     def merge_cells(
@@ -368,8 +373,10 @@ class WorksheetToolkit:
                     if color is not _UNCHANGED
                     else current.diagonal.color,
                 )
-                border_kwargs["diagonalUp"] = "diagonal_up" in sides
-                border_kwargs["diagonalDown"] = "diagonal_down" in sides
+                # Only the diagonal actually named is switched on; rewriting both
+                # flags every time is what made one call clear the other.
+                border_kwargs["diagonalUp"] = "diagonal_up" in sides or current.diagonalUp
+                border_kwargs["diagonalDown"] = "diagonal_down" in sides or current.diagonalDown
             else:
                 border_kwargs["diagonal"] = current.diagonal
                 border_kwargs["diagonalUp"] = current.diagonalUp
@@ -873,11 +880,15 @@ class WorksheetToolkit:
             return
 
         # --- Union case ---
+        # The bounds are read once, up front. ws.cell() creates a cell that does not
+        # exist, so re-reading max_row/max_column inside the loops lets the row sweep
+        # grow the sheet and the column sweep then cover rows nobody asked for.
+        last_row, last_column = ws.max_row, ws.max_column
         seen = set()
 
         # Row sweep (top to bottom, left to right)
         for r in rows:
-            for c in range(1, ws.max_column + 1):
+            for c in range(1, last_column + 1):
                 key = (r, c)
                 if key not in seen:
                     seen.add(key)
@@ -885,7 +896,7 @@ class WorksheetToolkit:
 
         # Column sweep (left to right, top to bottom)
         for c in columns:
-            for r in range(1, ws.max_row + 1):
+            for r in range(1, last_row + 1):
                 key = (r, c)
                 if key not in seen:
                     seen.add(key)

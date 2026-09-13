@@ -147,10 +147,6 @@ def test_a_rejected_border_leaves_the_whole_range_untouched(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].border.top.color is None
 
 
-@pytest.mark.xfail(
-    reason="setting diagonal_down clears the diagonal_up flag set by an earlier call",
-    strict=True,
-)
 def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_border(rows=1, columns=1, sides=("diagonal_up",), style="thin")
