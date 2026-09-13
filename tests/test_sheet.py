@@ -1,5 +1,8 @@
 """Sheet-level settings and the cell-selection mechanics behind every style setter."""
 
+import re
+import zipfile
+
 import pytest
 
 from openpyxl_toolkit import WorksheetToolkit
@@ -157,21 +160,33 @@ def test_a_later_selection_does_not_reset_cells_outside_it(sheet, roundtrip):
 # --- known defects -----------------------------------------------------------
 
 
-@pytest.mark.xfail(reason="styling materialises cells and inflates the used range", strict=True)
-def test_styling_a_range_does_not_grow_the_used_range(sheet):
-    """The used range is what set_column_best_fit and the selection defaults read.
+def test_naming_a_row_outside_the_data_styles_it(sheet, roundtrip):
+    """Cells named explicitly are styled even where the sheet holds no data yet.
 
-    Formatting must not make the sheet claim it holds more data than it does.
+    This does extend the used range, and that is the intended trade: the only way
+    to grow the sheet is to ask for it by name. Skipping those cells instead would
+    make the call quietly do less than it was asked to.
     """
     sheet["A1"] = "only cell"
+
     WorksheetToolkit(sheet).set_font(rows=[1, 2], columns=[1, 2], bold=True)
+
+    assert _bold_cells(roundtrip(sheet)) == {"A1", "A2", "B1", "B2"}
+
+
+def test_the_default_selection_does_not_extend_the_sheet(sheet):
+    """rows=None means the used range, and reading it must not grow it.
+
+    set_column_best_fit and the selection defaults both read the used range, so an
+    automatic call that quietly enlarged it would compound on every later call.
+    """
+    sheet["A1"] = "only cell"
+
+    WorksheetToolkit(sheet).set_font(bold=True)
 
     assert (sheet.max_row, sheet.max_column) == (1, 1)
 
 
-@pytest.mark.xfail(
-    reason="union row sweep grows max_row, so the column sweep over-reaches", strict=True
-)
 def test_union_selection_does_not_reach_rows_the_caller_never_asked_for(sheet, roundtrip):
     """Row 3 is neither in the requested rows nor in the sheet's data, so it must stay plain."""
     _grid(sheet, 2, 2)
@@ -181,25 +196,38 @@ def test_union_selection_does_not_reach_rows_the_caller_never_asked_for(sheet, r
     assert _bold_cells(roundtrip(sheet)) == {"A1", "A2", "A4", "B4"}
 
 
-@pytest.mark.xfail(reason="only the merge anchor keeps its fill through a save", strict=True)
-def test_a_fill_across_a_merged_range_survives_on_every_cell(sheet, roundtrip):
+def test_a_fill_across_a_merged_range_reaches_every_cell_in_the_file(sheet, tmp_path):
+    """Checked against the saved file, not a reload.
+
+    openpyxl replaces the non-anchor cells of a merge with MergedCell objects when it
+    reads a workbook, and drops their style while doing so. The style is in the file:
+    reading it back is what loses it, so a round-trip assertion would be testing
+    openpyxl rather than this library.
+    """
     toolkit = WorksheetToolkit(sheet)
     sheet["A1"] = "heading"
     toolkit.merge_cells(range_string="A1:C1")
 
     toolkit.set_fill(rows=1, columns=[1, 2, 3], fill_type="solid", start_color="#FFD966")
 
-    reloaded = roundtrip(sheet)
-    assert [
-        (
-            reloaded.cell(row=1, column=c).fill.fill_type,
-            reloaded.cell(row=1, column=c).fill.start_color.rgb,
-        )
-        for c in (1, 2, 3)
-    ] == [("solid", "FFFFD966")] * 3
+    path = tmp_path / "book.xlsx"
+    sheet.parent.save(path)
+    with zipfile.ZipFile(path) as archive:
+        worksheet = archive.read("xl/worksheets/sheet1.xml").decode()
+        styles = archive.read("xl/styles.xml").decode()
+
+    row = re.search(r'<row r="1".*?</row>', worksheet, re.S).group()
+    used = re.findall(r'<c r="([A-C]1)" s="(\d+)"', row)
+    assert [coordinate for coordinate, _ in used] == ["A1", "B1", "C1"]
+    assert len({style for _, style in used}) == 1, "the three cells disagree on style"
+
+    # cellStyleXfs precedes cellXfs, so the cell's style index counts within cellXfs
+    cell_formats = re.search(r"<cellXfs.*?</cellXfs>", styles, re.S).group()
+    used_format = re.findall(r"<xf [^>]*/>", cell_formats)[int(used[0][1])]
+    fill_index = int(re.search(r'fillId="(\d+)"', used_format).group(1))
+    assert "FFFFD966" in re.findall(r"<fill>.*?</fill>", styles, re.S)[fill_index]
 
 
-@pytest.mark.xfail(reason="unfreezing sets A1 and leaves orphan pane selections", strict=True)
 def test_unfreezing_leaves_no_pane_state_behind(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.freeze_panes("B2")
