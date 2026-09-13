@@ -236,7 +236,6 @@ def test_column_width_is_clamped_to_the_excel_maximum(sheet, roundtrip):
     assert roundtrip(sheet).column_dimensions["A"].width == EXCEL_MAX_COLUMN_WIDTH
 
 
-@pytest.mark.xfail(reason="a width of 0 is dropped by the writer", strict=True)
 def test_zero_column_width_collapses_the_column_in_the_saved_file(sheet, roundtrip):
     WorksheetToolkit(sheet).set_column_width(columns=1, width=0)
 
@@ -244,7 +243,6 @@ def test_zero_column_width_collapses_the_column_in_the_saved_file(sheet, roundtr
     assert dimension.width == 0 or dimension.hidden
 
 
-@pytest.mark.xfail(reason="a height of 0 is dropped by the writer", strict=True)
 def test_zero_row_height_collapses_the_row_in_the_saved_file(sheet, roundtrip):
     WorksheetToolkit(sheet).set_row_height(rows=1, height=0)
 
@@ -252,13 +250,11 @@ def test_zero_row_height_collapses_the_row_in_the_saved_file(sheet, roundtrip):
     assert dimension.height == 0 or dimension.hidden
 
 
-@pytest.mark.xfail(reason="a negative width is written to the file", strict=True)
 def test_negative_column_width_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
         WorksheetToolkit(sheet).set_column_width(columns=1, width=-5)
 
 
-@pytest.mark.xfail(reason="a negative height is written to the file", strict=True)
 def test_negative_row_height_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
         WorksheetToolkit(sheet).set_row_height(rows=1, height=-5)
@@ -269,13 +265,11 @@ def test_row_zero_is_rejected(sheet):
         WorksheetToolkit(sheet).set_row_height(rows=0, height=20)
 
 
-@pytest.mark.xfail(reason="an omitted width is a silent no-op", strict=True)
 def test_column_width_without_a_width_is_rejected(sheet):
     with pytest.raises((TypeError, ValueError)):
         WorksheetToolkit(sheet).set_column_width(columns=1)
 
 
-@pytest.mark.xfail(reason="an omitted height is a silent no-op", strict=True)
 def test_row_height_without_a_height_is_rejected(sheet):
     with pytest.raises((TypeError, ValueError)):
         WorksheetToolkit(sheet).set_row_height(rows=1)

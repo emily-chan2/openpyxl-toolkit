@@ -19,6 +19,8 @@ _MAX_COLUMN = 16_384
 _MAX_COLUMN_WIDTH = 255
 _MAX_ROW_HEIGHT = 409
 
+_BORDER_SIDES = ("top", "bottom", "left", "right", "diagonal_up", "diagonal_down")
+
 # Excel date tokens, longest first so "yyyy" is matched before "yy". Anything not
 # listed here is copied through, which is right for separators and literal text.
 _DATE_TOKENS = (
@@ -320,7 +322,10 @@ class WorksheetToolkit:
         >>>                    style='thin', color='#00ff00')
         """
         if isinstance(sides, str):
-            sides = tuple([sides])
+            sides = (sides,)
+        unknown = [side for side in sides if side not in _BORDER_SIDES]
+        if unknown:
+            raise ValueError(f"unknown border side(s) {unknown}. Choose from {list(_BORDER_SIDES)}")
 
         # Built first and assigned afterwards, so a cell that cannot be given the
         # requested border does not leave the rest of the range half-drawn.
@@ -378,7 +383,7 @@ class WorksheetToolkit:
         return self
 
     def set_outside_border(
-        self, *, start_row, end_row, start_column, end_column, style=_UNCHANGED, color=_UNCHANGED
+        self, *, start_row, end_row, start_column, end_column, style, color=_UNCHANGED
     ):
         """Set a border only on the outside edges of a rectangular block of cells.
 
@@ -551,7 +556,7 @@ class WorksheetToolkit:
 
         return self
 
-    def set_column_width(self, *, columns=None, width=_UNCHANGED):
+    def set_column_width(self, *, columns=None, width):
         """
         Set the width of one or more columns.
 
@@ -560,24 +565,34 @@ class WorksheetToolkit:
         columns : int or list of int
             Column number(s) to modify.
         width : float
-            Column width in Excel character units (not pixels).
+            Column width in Excel character units, not pixels. Required: there is no
+            existing value to leave alone, so omitting it cannot mean anything.
+            A width of 0 hides the column, which is how Excel stores a zero.
         """
-        if width is not _UNCHANGED:
-            if isinstance(columns, Number):
-                columns = [columns]
-            if columns is None:
-                columns = list(range(1, self.worksheet.max_column + 1))
+        if width < 0:
+            raise ValueError(f"width must not be negative, got {width}")
 
-            columns = list(columns)
-            _check_bounds(columns=columns)
-            width = min(width, _MAX_COLUMN_WIDTH)
-            for col in columns:
-                # get_column_letter rather than a cell lookup: row 1 of the column
-                # may be a MergedCell, which has no column_letter at all.
-                self.worksheet.column_dimensions[get_column_letter(col)].width = width
+        if isinstance(columns, Number):
+            columns = [columns]
+        if columns is None:
+            columns = list(range(1, self.worksheet.max_column + 1))
+
+        columns = list(columns)
+        _check_bounds(columns=columns)
+        width = min(width, _MAX_COLUMN_WIDTH)
+        for col in columns:
+            # get_column_letter rather than a cell lookup: row 1 of the column
+            # may be a MergedCell, which has no column_letter at all.
+            dimension = self.worksheet.column_dimensions[get_column_letter(col)]
+            # openpyxl cannot persist a zero width -- the writer drops any falsy
+            # dimension -- so the only way to honour it is to hide the column.
+            if width == 0:
+                dimension.hidden = True
+            else:
+                dimension.width = width
         return self
 
-    def set_row_height(self, *, rows=None, height=_UNCHANGED):
+    def set_row_height(self, *, rows=None, height):
         """
         Set the height of one or more rows.
 
@@ -586,19 +601,26 @@ class WorksheetToolkit:
         rows : int or list of int
             Row number(s) to modify.
         height : float
-            Row width in Excel character units (not pixels).
+            Row height in points. Required, for the same reason as the column width.
+            A height of 0 hides the row.
         """
-        if height is not _UNCHANGED:
-            if isinstance(rows, Number):
-                rows = [rows]
-            if rows is None:
-                rows = list(range(1, self.worksheet.max_row + 1))
+        if height < 0:
+            raise ValueError(f"height must not be negative, got {height}")
 
-            rows = list(rows)
-            _check_bounds(rows=rows)
-            height = min(height, _MAX_ROW_HEIGHT)
-            for row in rows:
-                self.worksheet.row_dimensions[row].height = height
+        if isinstance(rows, Number):
+            rows = [rows]
+        if rows is None:
+            rows = list(range(1, self.worksheet.max_row + 1))
+
+        rows = list(rows)
+        _check_bounds(rows=rows)
+        height = min(height, _MAX_ROW_HEIGHT)
+        for row in rows:
+            dimension = self.worksheet.row_dimensions[row]
+            if height == 0:
+                dimension.hidden = True
+            else:
+                dimension.height = height
         return self
 
     def set_fill(
