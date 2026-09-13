@@ -161,15 +161,14 @@ def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
     assert (border.diagonalUp, border.diagonalDown) == (True, True)
 
 
-@pytest.mark.xfail(reason="unknown side names are silently ignored", strict=True)
 def test_an_unknown_side_name_is_rejected(sheet):
     with pytest.raises(ValueError):
         WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("lft",), style="thin")
 
 
-@pytest.mark.xfail(reason="set_outside_border without a style is a silent no-op", strict=True)
 def test_outside_border_without_a_style_is_rejected(sheet):
-    with pytest.raises(ValueError):
+    """style has no default: a border with no style draws nothing."""
+    with pytest.raises(TypeError):
         WorksheetToolkit(sheet).set_outside_border(
             start_row=1, end_row=3, start_column=1, end_column=3
         )
