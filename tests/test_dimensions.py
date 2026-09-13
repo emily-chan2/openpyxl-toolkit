@@ -390,3 +390,34 @@ def test_best_fit_uses_the_metrics_of_the_cell_font(sheet, roundtrip):
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["B"].width > ws.column_dimensions["A"].width * 1.5
+
+
+@pytest.mark.parametrize(
+    ("number_format", "shown"),
+    [
+        ("yyyy-mm-dd", "2026-09-05"),
+        ("mm/dd/yyyy", "09/05/2026"),
+        ("d/m/yyyy", "5/9/2026"),
+        ("mmm d, yyyy", "Sep 5, 2026"),
+        ("mmmm yyyy", "September 2026"),
+        ("dddd", "Saturday"),
+        ("hh:mm:ss", "14:07:03"),
+        ("h:mm am/pm", "2:07 PM"),
+        ("m/d/yy h:mm", "9/5/26 14:07"),
+    ],
+)
+def test_a_date_is_measured_as_its_number_format_renders_it(sheet, roundtrip, number_format, shown):
+    """The width must match the displayed text, whatever platform this runs on.
+
+    The month-name tokens are the ones that break if a bare mm is matched first,
+    and the unpadded hour is the one that breaks on Windows, where strftime has no
+    %-I. Both are covered here rather than left to a manual check.
+    """
+    sheet["A1"] = datetime(2026, 9, 5, 14, 7, 3)
+    sheet["A1"].number_format = number_format
+    sheet["B1"] = shown
+
+    WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 2])
+
+    ws = roundtrip(sheet)
+    assert ws.column_dimensions["A"].width == pytest.approx(ws.column_dimensions["B"].width)

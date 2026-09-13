@@ -22,22 +22,24 @@ _MAX_ROW_HEIGHT = 409
 
 _BORDER_SIDES = ("top", "bottom", "left", "right", "diagonal_up", "diagonal_down")
 
-# Excel date tokens, longest first so "yyyy" is matched before "yy". Anything not
-# listed here is copied through, which is right for separators and literal text.
+# Excel date tokens, longest first so "yyyy" is matched before "yy". Each one maps
+# to a function of the value, rather than to a strftime directive: the no-padding
+# directives (%-d and friends) are a glibc and BSD extension that Windows rejects,
+# and falling back on those platforms silently mis-measured the column. The
+# name-based parts still go through strftime, which is portable and gives the
+# locale's own month and day names.
 _DATE_TOKENS = (
-    ("yyyy", "%Y"),
-    ("yy", "%y"),
-    ("mmmm", "%B"),
-    ("mmm", "%b"),
-    ("dddd", "%A"),
-    ("ddd", "%a"),
-    ("dd", "%d"),
-    ("d", "%-d"),
-    ("hh", "%H"),
-    ("h", "%-H"),
-    ("ss", "%S"),
-    ("s", "%-S"),
-    ("am/pm", "%p"),
+    ("yyyy", lambda v: f"{v.year:04d}"),
+    ("yy", lambda v: f"{v.year % 100:02d}"),
+    ("mmmm", lambda v: v.strftime("%B")),
+    ("mmm", lambda v: v.strftime("%b")),
+    ("dddd", lambda v: v.strftime("%A")),
+    ("ddd", lambda v: v.strftime("%a")),
+    ("dd", lambda v: f"{v.day:02d}"),
+    ("d", lambda v: str(v.day)),
+    ("ss", lambda v: f"{v.second:02d}"),
+    ("s", lambda v: str(v.second)),
+    ("am/pm", lambda v: v.strftime("%p")),
 )
 
 
@@ -76,37 +78,49 @@ def _displayed_text(cell):
     code = (cell.number_format or "").lower()
     if not code or code == "general":
         return str(value)
+    # A bare date has no time parts and a bare time has no date parts; a format
+    # asking for what the value does not carry is not worth guessing at.
+    needs = {"y": "year", "d": "day", "h": "hour", "s": "second"}
+    if any(not hasattr(value, attr) for letter, attr in needs.items() if letter in code):
+        return str(value)
 
     # An hour is written 12-hour when the code also carries AM/PM.
     twelve_hour = "am/pm" in code
+
+    def hour(value, padded):
+        shown = value.hour
+        if twelve_hour:
+            shown = shown % 12 or 12
+        return f"{shown:02d}" if padded else str(shown)
+
     # A minute token looks identical to a month token; Excel tells them apart by
     # whether an hour came first, so track that while walking the code.
-    pattern, index, after_hour = "", 0, False
+    out, index, after_hour = [], 0, False
     while index < len(code):
-        for token, directive in _DATE_TOKENS:
+        # The table first, so the month-name tokens mmmm and mmm are taken whole
+        # rather than having their first two characters eaten as a numeric month.
+        for token, render in _DATE_TOKENS:
             if code.startswith(token, index):
-                if token in ("hh", "h"):
-                    after_hour = True
-                    if twelve_hour:
-                        directive = "%I" if token == "hh" else "%-I"
-                pattern += directive
+                out.append(render(value))
                 index += len(token)
                 break
         else:
-            if code.startswith("mm", index):
-                pattern += "%M" if after_hour else "%m"
+            if code.startswith("hh", index) or code.startswith("h", index):
+                padded = code.startswith("hh", index)
+                after_hour = True
+                out.append(hour(value, padded))
+                index += 2 if padded else 1
+            elif code.startswith("mm", index):
+                out.append(f"{value.minute:02d}" if after_hour else f"{value.month:02d}")
                 index += 2
             elif code.startswith("m", index):
-                pattern += "%-M" if after_hour else "%-m"
+                out.append(str(value.minute) if after_hour else str(value.month))
                 index += 1
             else:
-                pattern += code[index]
+                out.append(code[index])
                 index += 1
 
-    try:
-        return value.strftime(pattern)
-    except ValueError:
-        return str(value)
+    return "".join(out)
 
 
 def _has_color(value):
