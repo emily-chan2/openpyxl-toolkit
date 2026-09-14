@@ -48,14 +48,14 @@ def test_merging_by_coordinates_produces_the_same_range_as_the_range_string(shee
 
 
 def test_zoom_scale_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_zoom_scale(85)
+    WorksheetToolkit(sheet).set_zoom_scale(zoom_scale=85)
 
     assert roundtrip(sheet).sheet_view.zoomScale == 85
 
 
 @pytest.mark.parametrize("zoom_scale", [10, 400])
 def test_zoom_scale_bounds_are_inclusive(sheet, roundtrip, zoom_scale):
-    WorksheetToolkit(sheet).set_zoom_scale(zoom_scale)
+    WorksheetToolkit(sheet).set_zoom_scale(zoom_scale=zoom_scale)
 
     assert roundtrip(sheet).sheet_view.zoomScale == zoom_scale
 
@@ -63,13 +63,15 @@ def test_zoom_scale_bounds_are_inclusive(sheet, roundtrip, zoom_scale):
 @pytest.mark.parametrize("zoom_scale", [9, 401, 0, -100])
 def test_zoom_scale_outside_the_allowed_span_is_rejected(sheet, zoom_scale):
     with pytest.raises(ValueError):
-        WorksheetToolkit(sheet).set_zoom_scale(zoom_scale)
+        WorksheetToolkit(sheet).set_zoom_scale(zoom_scale=zoom_scale)
 
 
 def test_sheet_level_methods_return_the_toolkit_for_chaining(sheet):
     toolkit = WorksheetToolkit(sheet)
 
-    chained = toolkit.freeze_panes("B2").merge_cells(range_string="A1:B1").set_zoom_scale(120)
+    chained = (
+        toolkit.freeze_panes("B2").merge_cells(range_string="A1:B1").set_zoom_scale(zoom_scale=120)
+    )
 
     assert chained is toolkit
 
@@ -298,3 +300,65 @@ def test_a_fractional_index_is_rejected(sheet):
         toolkit.set_font(rows=1.5, columns=1, bold=True)
     with pytest.raises(TypeError, match="must be an integer"):
         toolkit.set_row_height(rows=1.5, height=20)
+
+
+def test_the_toolkit_rejects_anything_that_is_not_a_worksheet(sheet):
+    """Passing the workbook is the easy slip, and it used to fail much later."""
+    with pytest.raises(TypeError, match="expected a Worksheet, got Workbook"):
+        WorksheetToolkit(sheet.parent)
+    with pytest.raises(TypeError, match="got str"):
+        WorksheetToolkit("Sheet1")
+
+
+def test_unmerge_cells_undoes_a_merge(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    sheet["A1"] = "heading"
+    toolkit.merge_cells(range_string="A1:C1")
+
+    toolkit.unmerge_cells(range_string="A1:C1")
+
+    assert list(roundtrip(sheet).merged_cells.ranges) == []
+
+
+def test_unmerge_cells_accepts_coordinates_too(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    sheet["A1"] = "heading"
+    toolkit.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
+
+    toolkit.unmerge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
+
+    assert list(roundtrip(sheet).merged_cells.ranges) == []
+
+
+def test_unmerging_a_range_that_is_not_merged_is_reported(sheet):
+    """Ignoring it would hide a typo in the range."""
+    with pytest.raises(ValueError):
+        WorksheetToolkit(sheet).unmerge_cells(range_string="A5:C5")
+
+
+@pytest.mark.parametrize("method", ["merge_cells", "unmerge_cells"])
+def test_a_range_with_no_arguments_says_what_is_missing(sheet, method):
+    """openpyxl's own message for this is 'expected <class int>'."""
+    with pytest.raises(ValueError, match="start_row, start_column, end_row, end_column"):
+        getattr(WorksheetToolkit(sheet), method)()
+
+
+def test_a_partial_range_says_which_corner_is_missing(sheet):
+    with pytest.raises(ValueError, match="end_column"):
+        WorksheetToolkit(sheet).merge_cells(start_row=1, start_column=1, end_row=1)
+
+
+def test_the_unchanged_sentinel_reads_as_words(sheet):
+    """It appears in every signature help() and an editor tooltip render."""
+    import inspect
+
+    from openpyxl_toolkit.worksheet_toolkit import _UNCHANGED
+
+    assert repr(_UNCHANGED) == "<unchanged>"
+    assert "<unchanged>" in str(inspect.signature(WorksheetToolkit.set_font))
+    assert "object object at" not in str(inspect.signature(WorksheetToolkit.set_font))
+
+
+def test_zoom_scale_is_keyword_only(sheet):
+    with pytest.raises(TypeError):
+        WorksheetToolkit(sheet).set_zoom_scale(85)

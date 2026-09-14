@@ -35,6 +35,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `set_zoom_scale` is keyword-only, like every other method. `set_zoom_scale(85)`
+  becomes `set_zoom_scale(zoom_scale=85)`.
+- `set_column_width`, `set_row_height` and `set_outside_border` take their required
+  argument first. Every method is keyword-only, so this changes no call.
+- `WorksheetToolkit` raises `TypeError` if given anything other than a worksheet.
+  Passing the workbook used to surface much later as an `AttributeError` from
+  inside a private method.
+- `merge_cells` with no arguments says which coordinates are missing instead of
+  letting openpyxl report `expected <class 'int'>`.
+
+### Added
+
+- `unmerge_cells`, taking the same arguments as `merge_cells`.
+
 - `set_column_best_fit` measures text with the real per-character advances of the
   font instead of treating every character as the same width, and uses Excel's own
   formula to convert that to a column width. Text columns come out 10-25% narrower,
