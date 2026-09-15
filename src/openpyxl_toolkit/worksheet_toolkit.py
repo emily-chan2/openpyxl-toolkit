@@ -16,7 +16,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from ._colors import has_color, normalize_color
 from ._limits import MAX_COLUMN_WIDTH, MAX_ROW_HEIGHT
-from ._ranges import check_bounds, check_range_arguments, iter_cells, resolve_cells
+from ._ranges import check_bounds, iter_cells, resolve_cells, resolve_range_arguments
 from ._sentinel import UNCHANGED
 from ._text import displayed_text, measure_text, workbook_normal_font
 
@@ -103,14 +103,19 @@ class WorksheetToolkit:
         start_row, start_column, end_row, end_column : int, optional
             The top-left and bottom-right of the range.
         """
-        check_range_arguments("merge_cells", cells, start_row, start_column, end_row, end_column)
-        self.worksheet.merge_cells(
-            range_string=cells,
-            start_row=start_row,
-            end_row=end_row,
-            start_column=start_column,
-            end_column=end_column,
+        target = resolve_range_arguments(
+            "merge_cells", cells, start_row, start_column, end_row, end_column
         )
+        if isinstance(target, str):
+            self.worksheet.merge_cells(range_string=target)
+        else:
+            first_row, first_column, last_row, last_column = target
+            self.worksheet.merge_cells(
+                start_row=first_row,
+                start_column=first_column,
+                end_row=last_row,
+                end_column=last_column,
+            )
         return self
 
     def unmerge_cells(
@@ -129,23 +134,29 @@ class WorksheetToolkit:
         A range that is not merged is left alone. A range that cannot be parsed
         at all raises.
         """
-        check_range_arguments("unmerge_cells", cells, start_row, start_column, end_row, end_column)
-        if cells is not None:
-            target = CellRange(cells)
-        else:
-            target = CellRange(
-                min_col=start_column, min_row=start_row, max_col=end_column, max_row=end_row
-            )
-        if target not in self.worksheet.merged_cells.ranges:
-            return self
-
-        self.worksheet.unmerge_cells(
-            range_string=cells,
-            start_row=start_row,
-            end_row=end_row,
-            start_column=start_column,
-            end_column=end_column,
+        target = resolve_range_arguments(
+            "unmerge_cells", cells, start_row, start_column, end_row, end_column
         )
+        if isinstance(target, str):
+            if CellRange(target) not in self.worksheet.merged_cells.ranges:
+                return self
+            self.worksheet.unmerge_cells(range_string=target)
+        else:
+            first_row, first_column, last_row, last_column = target
+            block = CellRange(
+                min_col=first_column,
+                min_row=first_row,
+                max_col=last_column,
+                max_row=last_row,
+            )
+            if block not in self.worksheet.merged_cells.ranges:
+                return self
+            self.worksheet.unmerge_cells(
+                start_row=first_row,
+                start_column=first_column,
+                end_row=last_row,
+                end_column=last_column,
+            )
         return self
 
     def set_alignment(
@@ -274,7 +285,7 @@ class WorksheetToolkit:
         updates = []
         for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             current = cell.border
-            border_kwargs = {}
+            straight = {}
 
             # Standard sides
             for side_name in ("left", "right", "top", "bottom"):
@@ -287,14 +298,14 @@ class WorksheetToolkit:
                             f"{cell.coordinate} has no {side_name} border, so a colour on its "
                             f"own would not show. Pass style='thin' as well."
                         )
-                    border_kwargs[side_name] = Side(
+                    straight[side_name] = Side(
                         style=new_style,
                         color=normalize_color(color)
                         if color is not UNCHANGED
                         else getattr(current, side_name).color,
                     )
                 else:
-                    border_kwargs[side_name] = getattr(current, side_name)
+                    straight[side_name] = getattr(current, side_name)
 
             # Diagonal side logic
             if "diagonal_up" in sides or "diagonal_down" in sides:
@@ -304,7 +315,7 @@ class WorksheetToolkit:
                         f"{cell.coordinate} has no diagonal border, so a colour on its own "
                         f"would not show. Pass style='thin' as well."
                     )
-                border_kwargs["diagonal"] = Side(
+                diagonal = Side(
                     style=new_style,
                     color=normalize_color(color)
                     if color is not UNCHANGED
@@ -312,14 +323,27 @@ class WorksheetToolkit:
                 )
                 # Only the diagonal actually named is switched on; rewriting both
                 # flags every time is what made one call clear the other.
-                border_kwargs["diagonalUp"] = "diagonal_up" in sides or current.diagonalUp
-                border_kwargs["diagonalDown"] = "diagonal_down" in sides or current.diagonalDown
+                diagonal_up = "diagonal_up" in sides or current.diagonalUp
+                diagonal_down = "diagonal_down" in sides or current.diagonalDown
             else:
-                border_kwargs["diagonal"] = current.diagonal
-                border_kwargs["diagonalUp"] = current.diagonalUp
-                border_kwargs["diagonalDown"] = current.diagonalDown
+                diagonal = current.diagonal
+                diagonal_up = current.diagonalUp
+                diagonal_down = current.diagonalDown
 
-            updates.append((cell, Border(**border_kwargs)))
+            updates.append(
+                (
+                    cell,
+                    Border(
+                        left=straight["left"],
+                        right=straight["right"],
+                        top=straight["top"],
+                        bottom=straight["bottom"],
+                        diagonal=diagonal,
+                        diagonalUp=diagonal_up,
+                        diagonalDown=diagonal_down,
+                    ),
+                )
+            )
 
         for cell, border in updates:
             cell.border = border
@@ -362,18 +386,15 @@ class WorksheetToolkit:
         >>> toolkit.set_outside_border(start_row=1, end_row=3, start_column=1, end_column=4,
                                        style='thin', color='#000000')
         """
-        if cells is not None:
-            if any(x is not None for x in (start_row, end_row, start_column, end_column)):
-                raise ValueError(
-                    "give either cells or the four coordinates to set_outside_border, not both."
-                )
-            rows, columns = resolve_cells(self.worksheet, cells)
+        target = resolve_range_arguments(
+            "set_outside_border", cells, start_row, start_column, end_row, end_column
+        )
+        if isinstance(target, str):
+            rows, columns = resolve_cells(self.worksheet, target)
         else:
-            check_range_arguments(
-                "set_outside_border", None, start_row, start_column, end_row, end_column
-            )
-            rows = list(range(start_row, end_row + 1))
-            columns = list(range(start_column, end_column + 1))
+            first_row, first_column, last_row, last_column = target
+            rows = list(range(first_row, last_row + 1))
+            columns = list(range(first_column, last_column + 1))
         start_row, end_row = rows[0], rows[-1]
         start_column, end_column = columns[0], columns[-1]
 
