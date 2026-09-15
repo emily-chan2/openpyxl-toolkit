@@ -1,11 +1,12 @@
 """Column widths, row heights and best-fit sizing, as observed in the saved file."""
 
-from datetime import datetime
+from datetime import date, datetime, time
 
 import pytest
 from openpyxl.styles import Font
 
 from openpyxl_toolkit import WorksheetToolkit
+from openpyxl_toolkit._text import displayed_text
 
 EXCEL_MAX_COLUMN_WIDTH = 255
 
@@ -421,3 +422,24 @@ def test_a_date_is_measured_as_its_number_format_renders_it(sheet, roundtrip, nu
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["A"].width == pytest.approx(ws.column_dimensions["B"].width)
+
+
+@pytest.mark.parametrize("number_format", ["mm", "m", "mm:ss;@"])
+def test_a_time_with_a_month_format_falls_back_to_the_stored_value(sheet, number_format):
+    """A lone m means month, and a time has none, so there is nothing to render.
+
+    Every other token checks the value carries the part it asks for before
+    rendering it. The m token could not, because it means minute after an hour
+    token and month otherwise, and it read .month off a time and raised.
+    """
+    sheet["A1"] = time(14, 30)
+    sheet["A1"].number_format = number_format
+
+    assert displayed_text(sheet["A1"]) == str(time(14, 30))
+
+
+def test_a_date_with_a_month_format_still_renders_the_month(sheet):
+    sheet["A1"] = date(2026, 9, 15)
+    sheet["A1"].number_format = "mm"
+
+    assert displayed_text(sheet["A1"]) == "09"

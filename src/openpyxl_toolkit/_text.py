@@ -31,6 +31,19 @@ DATE_TOKENS = (
 )
 
 
+def _month_or_minute(value, after_hour, padded):
+    """What an "m" token stands for, or None when the value does not carry it.
+
+    An "m" is minutes once an hour token has been seen and a month otherwise.
+    A time has no month and a date has no minute, so a format asking for the
+    part the value does not hold gets no guess, the same as the other tokens.
+    """
+    number = getattr(value, "minute" if after_hour else "month", None)
+    if number is None:
+        return None
+    return f"{number:02d}" if padded else str(number)
+
+
 def displayed_text(cell):
     """The text Excel shows in a cell, as far as it can be worked out cheaply.
 
@@ -80,12 +93,13 @@ def displayed_text(cell):
                 after_hour = True
                 out.append(hour(value, padded))
                 index += 2 if padded else 1
-            elif code.startswith("mm", index):
-                out.append(f"{value.minute:02d}" if after_hour else f"{value.month:02d}")
-                index += 2
-            elif code.startswith("m", index):
-                out.append(str(value.minute) if after_hour else str(value.month))
-                index += 1
+            elif code.startswith("mm", index) or code.startswith("m", index):
+                padded = code.startswith("mm", index)
+                part = _month_or_minute(value, after_hour, padded)
+                if part is None:
+                    return str(value)
+                out.append(part)
+                index += 2 if padded else 1
             else:
                 out.append(code[index])
                 index += 1
