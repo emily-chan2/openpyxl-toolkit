@@ -60,13 +60,15 @@ def resolve_cells(worksheet, cells):
     return rows, columns
 
 
-def check_range_arguments(name, cells, start_row, start_column, end_row, end_column):
-    """Check the range arguments before they reach openpyxl.
+def resolve_range_arguments(name, cells, start_row, start_column, end_row, end_column):
+    """Settle which of the two ways of naming a range the caller used.
 
-    Raises if both ``cells`` and any of the four coordinates are given, or if
-    only some of the coordinates are. openpyxl reports a missing coordinate as
-    "expected <class 'int'>" and ignores the coordinates when a range string is
-    given as well.
+    Returns the range string, or the four coordinates as
+    ``(start_row, start_column, end_row, end_column)``.
+
+    Raises if both forms are given, or if only some of the coordinates are.
+    openpyxl reports a missing coordinate as "expected <class 'int'>" and
+    ignores the coordinates when a range string is given as well.
     """
     corners = {
         "start_row": start_row,
@@ -83,14 +85,15 @@ def check_range_arguments(name, cells, start_row, start_column, end_row, end_col
                 f"cells={cells!r} already says which cells to use, "
                 f"so {', '.join(given)} would be ignored."
             )
-        return
+        return cells
 
-    missing = [key for key in corners if key not in given]
-    if missing:
+    if start_row is None or start_column is None or end_row is None or end_column is None:
+        missing = [key for key, value in corners.items() if value is None]
         raise ValueError(
             f"{name} needs either cells, such as 'A1:C3', or all four "
             f"coordinates. Missing: {', '.join(missing)}."
         )
+    return start_row, start_column, end_row, end_column
 
 
 def iter_cells(worksheet, rows=None, columns=None, intersections_only=True, cells=None):
