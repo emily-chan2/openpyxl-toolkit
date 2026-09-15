@@ -1,237 +1,28 @@
+"""The WorksheetToolkit class.
+
+Each method formats part of one worksheet and returns the toolkit, so calls can be
+chained. Picking cells, reading colours and measuring text are handled by the
+private modules alongside this one.
+"""
+
 from copy import copy
-from datetime import date, datetime, time
 from numbers import Number
 
-from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
+from openpyxl.styles import Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.views import Selection
 from openpyxl.worksheet.worksheet import Worksheet
 
-from . import _metrics
+from ._colors import has_color, normalize_color
+from ._limits import MAX_COLUMN_WIDTH, MAX_ROW_HEIGHT
+from ._ranges import check_bounds, check_range_arguments, iter_cells, resolve_cells
+from ._sentinel import UNCHANGED
+from ._text import displayed_text, measure_text, workbook_normal_font
 
 __all__ = ["WorksheetToolkit"]
 
-
-class _Unchanged:
-    """Marker for a parameter the caller did not pass."""
-
-    __slots__ = ()
-
-    def __repr__(self):
-        return "<unchanged>"
-
-
-_UNCHANGED = _Unchanged()
-
-# Excel's grid limits. openpyxl will create a cell outside them without complaint,
-# but the workbook can then never be saved, so they are rejected at the door.
-# get_column_letter is not a substitute: it accepts up to ZZZ (18278).
-_MAX_ROW = 1_048_576
-_MAX_COLUMN = 16_384
-
-# Excel refuses a column wider than this and clips a row taller than it.
-_MAX_COLUMN_WIDTH = 255
-_MAX_ROW_HEIGHT = 409
-
 _BORDER_SIDES = ("top", "bottom", "left", "right", "diagonal_up", "diagonal_down")
-
-# Excel date tokens, longest first so "yyyy" is matched before "yy". Each one maps
-# to a function of the value, rather than to a strftime directive: the no-padding
-# directives (%-d and friends) are a glibc and BSD extension that Windows rejects,
-# and falling back on those platforms silently mis-measured the column. The
-# name-based parts still go through strftime, which is portable and gives the
-# locale's own month and day names.
-_DATE_TOKENS = (
-    ("yyyy", lambda v: f"{v.year:04d}"),
-    ("yy", lambda v: f"{v.year % 100:02d}"),
-    ("mmmm", lambda v: v.strftime("%B")),
-    ("mmm", lambda v: v.strftime("%b")),
-    ("dddd", lambda v: v.strftime("%A")),
-    ("ddd", lambda v: v.strftime("%a")),
-    ("dd", lambda v: f"{v.day:02d}"),
-    ("d", lambda v: str(v.day)),
-    ("ss", lambda v: f"{v.second:02d}"),
-    ("s", lambda v: str(v.second)),
-    ("am/pm", lambda v: v.strftime("%p")),
-)
-
-
-def _check_indexes(indexes, limit, label):
-    """Reject indexes openpyxl would accept but Excel cannot store."""
-    for index in indexes:
-        # bool is an int, and a float index writes a cell reference like "A1.5"
-        # that openpyxl itself can no longer parse when reloading the file.
-        if not isinstance(index, int) or isinstance(index, bool):
-            raise TypeError(f"{label} index must be an integer, got {index!r}")
-        if not 1 <= index <= limit:
-            raise ValueError(
-                f"{label} {index} is outside the worksheet: {label}s run from 1 to {limit}"
-            )
-
-
-def _check_bounds(rows=(), columns=()):
-    _check_indexes(rows, _MAX_ROW, "row")
-    _check_indexes(columns, _MAX_COLUMN, "column")
-
-
-def _displayed_text(cell):
-    """The text Excel shows in a cell, as far as it can be worked out cheaply.
-
-    Only dates and times are translated. Excel's number formats are a language of
-    their own, and a partial implementation of the rest would mis-measure in ways
-    that are harder to notice than the raw value, so everything else is measured
-    as it is stored.
-    """
-    value = cell.value
-    if value is None:
-        return ""
-    if not isinstance(value, (datetime, date, time)):
-        return str(value)
-
-    code = (cell.number_format or "").lower()
-    if not code or code == "general":
-        return str(value)
-    # A bare date has no time parts and a bare time has no date parts; a format
-    # asking for what the value does not carry is not worth guessing at.
-    needs = {"y": "year", "d": "day", "h": "hour", "s": "second"}
-    if any(not hasattr(value, attr) for letter, attr in needs.items() if letter in code):
-        return str(value)
-
-    # An hour is written 12-hour when the code also carries AM/PM.
-    twelve_hour = "am/pm" in code
-
-    def hour(value, padded):
-        shown = value.hour
-        if twelve_hour:
-            shown = shown % 12 or 12
-        return f"{shown:02d}" if padded else str(shown)
-
-    # A minute token looks identical to a month token; Excel tells them apart by
-    # whether an hour came first, so track that while walking the code.
-    out, index, after_hour = [], 0, False
-    while index < len(code):
-        # The table first, so the month-name tokens mmmm and mmm are taken whole
-        # rather than having their first two characters eaten as a numeric month.
-        for token, render in _DATE_TOKENS:
-            if code.startswith(token, index):
-                out.append(render(value))
-                index += len(token)
-                break
-        else:
-            if code.startswith("hh", index) or code.startswith("h", index):
-                padded = code.startswith("hh", index)
-                after_hour = True
-                out.append(hour(value, padded))
-                index += 2 if padded else 1
-            elif code.startswith("mm", index):
-                out.append(f"{value.minute:02d}" if after_hour else f"{value.month:02d}")
-                index += 2
-            elif code.startswith("m", index):
-                out.append(str(value.minute) if after_hour else str(value.month))
-                index += 1
-            else:
-                out.append(code[index])
-                index += 1
-
-    return "".join(out)
-
-
-def _resolve_cells(worksheet, cells):
-    """Turn a range string into the rows and columns it covers.
-
-    Accepts the three spellings Excel uses:
-    - a block such as "A1:C3"
-    - whole columns such as "B:D"
-    - whole rows such as "2:5"
-
-    An unbounded side is filled in from the worksheet's used range, so "B:B"
-    means column B as far as the sheet goes rather than all 1,048,576 rows.
-    """
-    text = (cells or "").strip()
-    if not text:
-        raise ValueError("cells needs a range such as 'A1:C3', 'B:B' or '2:5'")
-
-    min_col, min_row, max_col, max_row = range_boundaries(text)
-    # "C3:A1" is the same block as "A1:C3"; openpyxl reports it back-to-front.
-    if min_row is not None and max_row is not None and min_row > max_row:
-        min_row, max_row = max_row, min_row
-    if min_col is not None and max_col is not None and min_col > max_col:
-        min_col, max_col = max_col, min_col
-
-    rows = list(range(min_row or 1, (max_row if max_row is not None else worksheet.max_row) + 1))
-    columns = list(
-        range(min_col or 1, (max_col if max_col is not None else worksheet.max_column) + 1)
-    )
-    return rows, columns
-
-
-def _check_range_arguments(name, cells, start_row, start_column, end_row, end_column):
-    """Check the range arguments before they reach openpyxl.
-
-    Raises if both ``cells`` and any of the four coordinates are given, or if
-    only some of the coordinates are. openpyxl reports a missing coordinate as
-    "expected <class 'int'>" and ignores the coordinates when a range string is
-    given as well.
-    """
-    corners = {
-        "start_row": start_row,
-        "start_column": start_column,
-        "end_row": end_row,
-        "end_column": end_column,
-    }
-    given = [key for key, value in corners.items() if value is not None]
-
-    if cells is not None:
-        if given:
-            raise ValueError(
-                f"give {name} either cells or the four coordinates, not both. "
-                f"cells={cells!r} already says which cells to use, "
-                f"so {', '.join(given)} would be ignored."
-            )
-        return
-
-    missing = [key for key in corners if key not in given]
-    if missing:
-        raise ValueError(
-            f"{name} needs either cells, such as 'A1:C3', or all four "
-            f"coordinates. Missing: {', '.join(missing)}."
-        )
-
-
-def _measure_text(text, font, normal_font):
-    """Column width that fits ``text``, from the real advances of its font."""
-    name, size = font
-    base_name, base_size = normal_font
-    return _metrics.column_width(text, size, base_size, name, base_name)
-
-
-def _has_color(value):
-    """True when a colour carries something the user chose.
-
-    A cell that was never coloured reports the ARGB default rather than nothing,
-    so an absent colour and an explicit one are only distinguishable by value.
-    """
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value.upper() not in ("", "00000000")
-    if getattr(value, "type", None) != "rgb":
-        return True  # a theme, indexed or automatic colour is a real choice
-    return (value.rgb or "").upper() not in ("", "00000000")
-
-
-def _normalize_color(color):
-    if color is _UNCHANGED:
-        return _UNCHANGED
-    if color is None:
-        # None clears the colour; _UNCHANGED is how "leave it alone" is spelled.
-        return None
-    hex_color = color.lstrip("#").upper()
-    if len(hex_color) == 6:
-        hex_color = f"FF{hex_color}"
-    return hex_color
 
 
 class WorksheetToolkit:
@@ -312,7 +103,7 @@ class WorksheetToolkit:
         start_row, start_column, end_row, end_column : int, optional
             The top-left and bottom-right of the range.
         """
-        _check_range_arguments("merge_cells", cells, start_row, start_column, end_row, end_column)
+        check_range_arguments("merge_cells", cells, start_row, start_column, end_row, end_column)
         self.worksheet.merge_cells(
             range_string=cells,
             start_row=start_row,
@@ -338,7 +129,7 @@ class WorksheetToolkit:
         A range that is not merged is left alone. A range that cannot be parsed
         at all raises.
         """
-        _check_range_arguments("unmerge_cells", cells, start_row, start_column, end_row, end_column)
+        check_range_arguments("unmerge_cells", cells, start_row, start_column, end_row, end_column)
         if cells is not None:
             target = CellRange(cells)
         else:
@@ -364,13 +155,13 @@ class WorksheetToolkit:
         rows=None,
         columns=None,
         intersections_only=True,
-        horizontal=_UNCHANGED,
-        vertical=_UNCHANGED,
-        text_rotation=_UNCHANGED,
-        wrap_text=_UNCHANGED,
-        shrink_to_fit=_UNCHANGED,
-        indent=_UNCHANGED,
-        reading_order=_UNCHANGED,
+        horizontal=UNCHANGED,
+        vertical=UNCHANGED,
+        text_rotation=UNCHANGED,
+        wrap_text=UNCHANGED,
+        shrink_to_fit=UNCHANGED,
+        indent=UNCHANGED,
+        reading_order=UNCHANGED,
     ):
         """Set the alignment of cells defined by rows and columns. If rows and columns are empty or
         None, applies to all cells.
@@ -422,12 +213,12 @@ class WorksheetToolkit:
         }
 
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only, cells):
+        for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             # Copy and override for the same reason as set_font: rebuilding from
             # the arguments drops justifyLastLine and relativeIndent.
             new_alignment = copy(cell.alignment)
             for attribute, value in parameters.items():
-                if value is not _UNCHANGED:
+                if value is not UNCHANGED:
                     setattr(new_alignment, attribute, value)
             updates.append((cell, new_alignment))
 
@@ -443,8 +234,8 @@ class WorksheetToolkit:
         columns=None,
         intersections_only=True,
         sides=("top", "bottom", "left", "right"),
-        style=_UNCHANGED,
-        color=_UNCHANGED,
+        style=UNCHANGED,
+        color=UNCHANGED,
     ):
         """Set borders for specified cells.
 
@@ -481,7 +272,7 @@ class WorksheetToolkit:
         # Built first and assigned afterwards, so a cell that cannot be given the
         # requested border does not leave the rest of the range half-drawn.
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only, cells):
+        for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             current = cell.border
             border_kwargs = {}
 
@@ -489,17 +280,17 @@ class WorksheetToolkit:
             for side_name in ("left", "right", "top", "bottom"):
                 if side_name in sides:
                     new_style = (
-                        style if style is not _UNCHANGED else getattr(current, side_name).style
+                        style if style is not UNCHANGED else getattr(current, side_name).style
                     )
-                    if color is not _UNCHANGED and new_style is None:
+                    if color is not UNCHANGED and new_style is None:
                         raise ValueError(
                             f"{cell.coordinate} has no {side_name} border, so a colour on its "
                             f"own would not show. Pass style='thin' as well."
                         )
                     border_kwargs[side_name] = Side(
                         style=new_style,
-                        color=_normalize_color(color)
-                        if color is not _UNCHANGED
+                        color=normalize_color(color)
+                        if color is not UNCHANGED
                         else getattr(current, side_name).color,
                     )
                 else:
@@ -507,16 +298,16 @@ class WorksheetToolkit:
 
             # Diagonal side logic
             if "diagonal_up" in sides or "diagonal_down" in sides:
-                new_style = style if style is not _UNCHANGED else current.diagonal.style
-                if color is not _UNCHANGED and new_style is None:
+                new_style = style if style is not UNCHANGED else current.diagonal.style
+                if color is not UNCHANGED and new_style is None:
                     raise ValueError(
                         f"{cell.coordinate} has no diagonal border, so a colour on its own "
                         f"would not show. Pass style='thin' as well."
                     )
                 border_kwargs["diagonal"] = Side(
                     style=new_style,
-                    color=_normalize_color(color)
-                    if color is not _UNCHANGED
+                    color=normalize_color(color)
+                    if color is not UNCHANGED
                     else current.diagonal.color,
                 )
                 # Only the diagonal actually named is switched on; rewriting both
@@ -544,7 +335,7 @@ class WorksheetToolkit:
         end_row=None,
         start_column=None,
         end_column=None,
-        color=_UNCHANGED,
+        color=UNCHANGED,
     ):
         """Set a border only on the outside edges of a rectangular block of cells.
 
@@ -576,9 +367,9 @@ class WorksheetToolkit:
                 raise ValueError(
                     "give either cells or the four coordinates to set_outside_border, not both."
                 )
-            rows, columns = _resolve_cells(self.worksheet, cells)
+            rows, columns = resolve_cells(self.worksheet, cells)
         else:
-            _check_range_arguments(
+            check_range_arguments(
                 "set_outside_border", None, start_row, start_column, end_row, end_column
             )
             rows = list(range(start_row, end_row + 1))
@@ -686,11 +477,11 @@ class WorksheetToolkit:
         columns = list(columns)
         # Before any ws.cell() call: materialising an out-of-grid cell makes the
         # workbook permanently unsaveable, so a later failure would come too late.
-        _check_bounds(columns=columns)
+        check_bounds(columns=columns)
         ignore_rows = set() if ignore_rows is None else set(ignore_rows)
-        normal_font = self._normal_font()
+        normal_font = workbook_normal_font(self.worksheet)
 
-        measure = measure or _measure_text
+        measure = measure or measure_text
         for col in columns:
             excel_width = 0
             measured_anything = False
@@ -713,7 +504,7 @@ class WorksheetToolkit:
                     cell.font.name or normal_font[0],
                     normal_font[1] if cell.font.sz is None else cell.font.sz,
                 )
-                excel_width = max(measure(_displayed_text(cell), font, normal_font), excel_width)
+                excel_width = max(measure(displayed_text(cell), font, normal_font), excel_width)
 
             if not measured_anything:
                 # Nothing to fit. Leaving the column alone matters because a width
@@ -724,7 +515,7 @@ class WorksheetToolkit:
             if min_width is not None:
                 width = max(width, min_width)
             ws.column_dimensions[get_column_letter(col)].width = min(
-                width, _MAX_COLUMN_WIDTH if max_width is None else max_width
+                width, MAX_COLUMN_WIDTH if max_width is None else max_width
             )
 
         return self
@@ -751,8 +542,8 @@ class WorksheetToolkit:
             columns = list(range(1, self.worksheet.max_column + 1))
 
         columns = list(columns)
-        _check_bounds(columns=columns)
-        width = min(width, _MAX_COLUMN_WIDTH)
+        check_bounds(columns=columns)
+        width = min(width, MAX_COLUMN_WIDTH)
         for col in columns:
             # get_column_letter rather than a cell lookup: row 1 of the column
             # may be a MergedCell, which has no column_letter at all.
@@ -786,8 +577,8 @@ class WorksheetToolkit:
             rows = list(range(1, self.worksheet.max_row + 1))
 
         rows = list(rows)
-        _check_bounds(rows=rows)
-        height = min(height, _MAX_ROW_HEIGHT)
+        check_bounds(rows=rows)
+        height = min(height, MAX_ROW_HEIGHT)
         for row in rows:
             dimension = self.worksheet.row_dimensions[row]
             if height == 0:
@@ -803,9 +594,9 @@ class WorksheetToolkit:
         rows=None,
         columns=None,
         intersections_only=True,
-        fill_type=_UNCHANGED,
-        start_color=_UNCHANGED,
-        end_color=_UNCHANGED,
+        fill_type=UNCHANGED,
+        start_color=UNCHANGED,
+        end_color=UNCHANGED,
     ):
         """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
@@ -848,12 +639,12 @@ class WorksheetToolkit:
                 "one. Pass fill_type=None to remove the fill, or give an explicit hex colour."
             )
 
-        requested = any(arg is not _UNCHANGED for arg in (fill_type, start_color, end_color))
+        requested = any(arg is not UNCHANGED for arg in (fill_type, start_color, end_color))
 
         # Every fill is built before any is assigned, so a failure part-way through
         # leaves the worksheet exactly as it was found rather than half-formatted.
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only, cells):
+        for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             current = cell.fill
             # cell.fill is a StyleProxy, so isinstance against PatternFill never
             # matches; the wrapped object's tagname is what distinguishes them.
@@ -874,17 +665,15 @@ class WorksheetToolkit:
                 # so anything left unspecified falls back to PatternFill's default.
                 current_type = current_start = current_end = None
 
-            new_type = current_type if fill_type is _UNCHANGED else fill_type
-            new_start = (
-                current_start if start_color is _UNCHANGED else _normalize_color(start_color)
-            )
+            new_type = current_type if fill_type is UNCHANGED else fill_type
+            new_start = current_start if start_color is UNCHANGED else normalize_color(start_color)
 
-            if start_color is not _UNCHANGED and new_type is None:
+            if start_color is not UNCHANGED and new_type is None:
                 raise ValueError(
                     f"{cell.coordinate} has no fill pattern, so a colour on its own would "
                     f"not show. Pass fill_type='solid' as well."
                 )
-            if fill_type not in (_UNCHANGED, None) and not _has_color(new_start):
+            if fill_type not in (UNCHANGED, None) and not has_color(new_start):
                 raise ValueError(
                     f"{cell.coordinate} has no fill colour, so fill_type={fill_type!r} alone "
                     f"would paint it black. Pass start_color as well."
@@ -900,8 +689,8 @@ class WorksheetToolkit:
                         # the descriptor itself, which PatternFill rejects.
                         start_color=new_start,
                         end_color=current_end
-                        if end_color is _UNCHANGED
-                        else _normalize_color(end_color),
+                        if end_color is UNCHANGED
+                        else normalize_color(end_color),
                     ),
                 )
             )
@@ -917,13 +706,13 @@ class WorksheetToolkit:
         rows=None,
         columns=None,
         intersections_only=True,
-        name=_UNCHANGED,
-        size=_UNCHANGED,
-        bold=_UNCHANGED,
-        italic=_UNCHANGED,
-        underline=_UNCHANGED,
-        strike=_UNCHANGED,
-        color=_UNCHANGED,
+        name=UNCHANGED,
+        size=UNCHANGED,
+        bold=UNCHANGED,
+        italic=UNCHANGED,
+        underline=UNCHANGED,
+        strike=UNCHANGED,
+        color=UNCHANGED,
     ):
         """Set the font of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
@@ -967,17 +756,17 @@ class WorksheetToolkit:
             "italic": italic,
             "underline": underline,
             "strike": strike,
-            "color": _normalize_color(color),
+            "color": normalize_color(color),
         }
 
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only, cells):
+        for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             # Copy and override, rather than build a new Font from the arguments:
             # a fresh Font would silently reset every attribute this method does
             # not expose, such as vertAlign and scheme.
             new_font = copy(cell.font)
             for attribute, value in parameters.items():
-                if value is not _UNCHANGED:
+                if value is not UNCHANGED:
                     setattr(new_font, attribute, value)
             updates.append((cell, new_font))
 
@@ -997,78 +786,3 @@ class WorksheetToolkit:
             raise ValueError("zoom_scale must be between 10 and 400")
         self.worksheet.sheet_view.zoomScale = zoom_scale
         return self
-
-    def _normal_font(self):
-        """The workbook's normal font, as ``(name, point_size)``.
-
-        A cell with no font record of its own inherits this, and Excel's column
-        width unit is defined by it rather than by whatever the cell uses.
-        """
-        fonts = getattr(self.worksheet.parent, "_fonts", None)
-        normal = fonts[0] if fonts else None
-        return (
-            getattr(normal, "name", None) or DEFAULT_FONT.name,
-            getattr(normal, "sz", None) or DEFAULT_FONT.sz,
-        )
-
-    def _iter_cells(self, rows=None, columns=None, intersections_only=True, cells=None):
-        ws = self.worksheet
-
-        if cells is not None:
-            if rows is not None or columns is not None:
-                raise ValueError(
-                    "give either cells or rows/columns, not both. "
-                    f"cells={cells!r} already says which cells to use."
-                )
-            rows, columns = _resolve_cells(ws, cells)
-            # A range names its own block, so there is nothing to intersect or union.
-            intersections_only = True
-
-        # Normalize rows and columns
-        if rows is None:
-            rows = []
-        if columns is None:
-            columns = []
-        if isinstance(rows, Number):
-            rows = [rows]
-        if isinstance(columns, Number):
-            columns = [columns]
-        if not rows:
-            intersections_only = True
-            rows = list(range(1, ws.max_row + 1))
-        if not columns:
-            intersections_only = True
-            columns = list(range(1, ws.max_column + 1))
-        rows = sorted(set(rows))
-        columns = sorted(set(columns))
-        _check_bounds(rows, columns)
-
-        # --- Intersection case ---
-        if intersections_only:
-            for r in rows:
-                for c in columns:
-                    yield ws.cell(row=r, column=c)
-            return
-
-        # --- Union case ---
-        # The bounds are read once, up front. ws.cell() creates a cell that does not
-        # exist, so re-reading max_row/max_column inside the loops lets the row sweep
-        # grow the sheet and the column sweep then cover rows nobody asked for.
-        last_row, last_column = ws.max_row, ws.max_column
-        seen = set()
-
-        # Row sweep (top to bottom, left to right)
-        for r in rows:
-            for c in range(1, last_column + 1):
-                key = (r, c)
-                if key not in seen:
-                    seen.add(key)
-                    yield ws.cell(row=r, column=c)
-
-        # Column sweep (left to right, top to bottom)
-        for c in columns:
-            for r in range(1, last_row + 1):
-                key = (r, c)
-                if key not in seen:
-                    seen.add(key)
-                    yield ws.cell(row=r, column=c)
