@@ -165,7 +165,7 @@ def test_a_colour_on_its_own_is_fine_when_the_cell_is_already_filled(sheet, roun
 
 
 def test_a_pattern_with_no_colour_is_rejected(sheet):
-    """The mirror case: solid with no colour paints the cell black."""
+    """A pattern with no colour paints the cell black, so it is rejected."""
     _grid(sheet)
     with pytest.raises(ValueError, match="start_color"):
         WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")

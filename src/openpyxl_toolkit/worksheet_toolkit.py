@@ -4,6 +4,7 @@ from numbers import Number
 
 from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.views import Selection
 from openpyxl.worksheet.worksheet import Worksheet
@@ -137,6 +138,75 @@ def _displayed_text(cell):
     return "".join(out)
 
 
+def _resolve_cells(worksheet, cells):
+    """Turn a range string into the rows and columns it covers.
+
+    Accepts the three spellings Excel uses:
+    - a block such as "A1:C3"
+    - whole columns such as "B:D"
+    - whole rows such as "2:5"
+
+    An unbounded side is filled in from the worksheet's used range, so "B:B"
+    means column B as far as the sheet goes rather than all 1,048,576 rows.
+    """
+    text = (cells or "").strip()
+    if not text:
+        raise ValueError("cells needs a range such as 'A1:C3', 'B:B' or '2:5'")
+
+    min_col, min_row, max_col, max_row = range_boundaries(text)
+    # "C3:A1" is the same block as "A1:C3"; openpyxl reports it back-to-front.
+    if min_row is not None and max_row is not None and min_row > max_row:
+        min_row, max_row = max_row, min_row
+    if min_col is not None and max_col is not None and min_col > max_col:
+        min_col, max_col = max_col, min_col
+
+    rows = list(range(min_row or 1, (max_row if max_row is not None else worksheet.max_row) + 1))
+    columns = list(
+        range(min_col or 1, (max_col if max_col is not None else worksheet.max_column) + 1)
+    )
+    return rows, columns
+
+
+def _check_range_arguments(name, cells, start_row, start_column, end_row, end_column):
+    """Check the range arguments before they reach openpyxl.
+
+    Raises if both ``cells`` and any of the four coordinates are given, or if
+    only some of the coordinates are. openpyxl reports a missing coordinate as
+    "expected <class 'int'>" and ignores the coordinates when a range string is
+    given as well.
+    """
+    corners = {
+        "start_row": start_row,
+        "start_column": start_column,
+        "end_row": end_row,
+        "end_column": end_column,
+    }
+    given = [key for key, value in corners.items() if value is not None]
+
+    if cells is not None:
+        if given:
+            raise ValueError(
+                f"give {name} either cells or the four coordinates, not both. "
+                f"cells={cells!r} already says which cells to use, "
+                f"so {', '.join(given)} would be ignored."
+            )
+        return
+
+    missing = [key for key in corners if key not in given]
+    if missing:
+        raise ValueError(
+            f"{name} needs either cells, such as 'A1:C3', or all four "
+            f"coordinates. Missing: {', '.join(missing)}."
+        )
+
+
+def _measure_text(text, font, normal_font):
+    """Column width that fits ``text``, from the real advances of its font."""
+    name, size = font
+    base_name, base_size = normal_font
+    return _metrics.column_width(text, size, base_size, name, base_name)
+
+
 def _has_color(value):
     """True when a colour carries something the user chose.
 
@@ -223,25 +293,28 @@ class WorksheetToolkit:
         return self
 
     def merge_cells(
-        self, *, range_string=None, start_row=None, start_column=None, end_row=None, end_column=None
+        self,
+        *,
+        cells=None,
+        start_row=None,
+        start_column=None,
+        end_row=None,
+        end_column=None,
     ):
         """Merge a rectangular range of cells.
 
-        Give either ``range_string`` or all four coordinates.
+        Give either ``cells`` or all four coordinates.
 
         Parameters
         ----------
-        range_string : str, optional
-            The range to merge, such as 'A1:C3'. Takes precedence over the
-            coordinates if both are given.
+        cells : str, optional
+            The range to merge, such as 'A1:C3'.
         start_row, start_column, end_row, end_column : int, optional
             The top-left and bottom-right of the range.
         """
-        self._check_range_arguments(
-            "merge_cells", range_string, start_row, start_column, end_row, end_column
-        )
+        _check_range_arguments("merge_cells", cells, start_row, start_column, end_row, end_column)
         self.worksheet.merge_cells(
-            range_string=range_string,
+            range_string=cells,
             start_row=start_row,
             end_row=end_row,
             start_column=start_column,
@@ -250,17 +323,24 @@ class WorksheetToolkit:
         return self
 
     def unmerge_cells(
-        self, *, range_string=None, start_row=None, start_column=None, end_row=None, end_column=None
+        self,
+        *,
+        cells=None,
+        start_row=None,
+        start_column=None,
+        end_row=None,
+        end_column=None,
     ):
         """Undo a merge, taking the same arguments as :meth:`merge_cells`.
 
-        A range that is not merged is left alone. A range that cannot be parsed at all still raises.
+        Give ``cells`` a range such as 'A1:C3', or all four coordinates.
+
+        A range that is not merged is left alone. A range that cannot be parsed
+        at all raises.
         """
-        self._check_range_arguments(
-            "unmerge_cells", range_string, start_row, start_column, end_row, end_column
-        )
-        if range_string is not None:
-            target = CellRange(range_string)
+        _check_range_arguments("unmerge_cells", cells, start_row, start_column, end_row, end_column)
+        if cells is not None:
+            target = CellRange(cells)
         else:
             target = CellRange(
                 min_col=start_column, min_row=start_row, max_col=end_column, max_row=end_row
@@ -269,7 +349,7 @@ class WorksheetToolkit:
             return self
 
         self.worksheet.unmerge_cells(
-            range_string=range_string,
+            range_string=cells,
             start_row=start_row,
             end_row=end_row,
             start_column=start_column,
@@ -277,27 +357,10 @@ class WorksheetToolkit:
         )
         return self
 
-    @staticmethod
-    def _check_range_arguments(name, range_string, start_row, start_column, end_row, end_column):
-        """Say which arguments are missing, rather than letting openpyxl say "expected int"."""
-        if range_string is not None:
-            return
-        corners = {
-            "start_row": start_row,
-            "start_column": start_column,
-            "end_row": end_row,
-            "end_column": end_column,
-        }
-        missing = [key for key, value in corners.items() if value is None]
-        if missing:
-            raise ValueError(
-                f"{name} needs either range_string, such as 'A1:C3', or all four "
-                f"coordinates. Missing: {', '.join(missing)}."
-            )
-
     def set_alignment(
         self,
         *,
+        cells=None,
         rows=None,
         columns=None,
         intersections_only=True,
@@ -359,7 +422,7 @@ class WorksheetToolkit:
         }
 
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only):
+        for cell in self._iter_cells(rows, columns, intersections_only, cells):
             # Copy and override for the same reason as set_font: rebuilding from
             # the arguments drops justifyLastLine and relativeIndent.
             new_alignment = copy(cell.alignment)
@@ -375,6 +438,7 @@ class WorksheetToolkit:
     def set_border(
         self,
         *,
+        cells=None,
         rows=None,
         columns=None,
         intersections_only=True,
@@ -417,7 +481,7 @@ class WorksheetToolkit:
         # Built first and assigned afterwards, so a cell that cannot be given the
         # requested border does not leave the rest of the range half-drawn.
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only):
+        for cell in self._iter_cells(rows, columns, intersections_only, cells):
             current = cell.border
             border_kwargs = {}
 
@@ -472,7 +536,15 @@ class WorksheetToolkit:
         return self
 
     def set_outside_border(
-        self, *, style, start_row, end_row, start_column, end_column, color=_UNCHANGED
+        self,
+        *,
+        style,
+        cells=None,
+        start_row=None,
+        end_row=None,
+        start_column=None,
+        end_column=None,
+        color=_UNCHANGED,
     ):
         """Set a border only on the outside edges of a rectangular block of cells.
 
@@ -499,8 +571,20 @@ class WorksheetToolkit:
         >>> toolkit.set_outside_border(start_row=1, end_row=3, start_column=1, end_column=4,
                                        style='thin', color='#000000')
         """
-        rows = list(range(start_row, end_row + 1))
-        columns = list(range(start_column, end_column + 1))
+        if cells is not None:
+            if any(x is not None for x in (start_row, end_row, start_column, end_column)):
+                raise ValueError(
+                    "give either cells or the four coordinates to set_outside_border, not both."
+                )
+            rows, columns = _resolve_cells(self.worksheet, cells)
+        else:
+            _check_range_arguments(
+                "set_outside_border", None, start_row, start_column, end_row, end_column
+            )
+            rows = list(range(start_row, end_row + 1))
+            columns = list(range(start_column, end_column + 1))
+        start_row, end_row = rows[0], rows[-1]
+        start_column, end_column = columns[0], columns[-1]
 
         # Top border
         self.set_border(
@@ -606,7 +690,7 @@ class WorksheetToolkit:
         ignore_rows = set() if ignore_rows is None else set(ignore_rows)
         normal_font = self._normal_font()
 
-        measure = measure or self._measure_text
+        measure = measure or _measure_text
         for col in columns:
             excel_width = 0
             measured_anything = False
@@ -715,6 +799,7 @@ class WorksheetToolkit:
     def set_fill(
         self,
         *,
+        cells=None,
         rows=None,
         columns=None,
         intersections_only=True,
@@ -768,7 +853,7 @@ class WorksheetToolkit:
         # Every fill is built before any is assigned, so a failure part-way through
         # leaves the worksheet exactly as it was found rather than half-formatted.
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only):
+        for cell in self._iter_cells(rows, columns, intersections_only, cells):
             current = cell.fill
             # cell.fill is a StyleProxy, so isinstance against PatternFill never
             # matches; the wrapped object's tagname is what distinguishes them.
@@ -828,6 +913,7 @@ class WorksheetToolkit:
     def set_font(
         self,
         *,
+        cells=None,
         rows=None,
         columns=None,
         intersections_only=True,
@@ -885,7 +971,7 @@ class WorksheetToolkit:
         }
 
         updates = []
-        for cell in self._iter_cells(rows, columns, intersections_only):
+        for cell in self._iter_cells(rows, columns, intersections_only, cells):
             # Copy and override, rather than build a new Font from the arguments:
             # a fresh Font would silently reset every attribute this method does
             # not expose, such as vertAlign and scheme.
@@ -912,13 +998,6 @@ class WorksheetToolkit:
         self.worksheet.sheet_view.zoomScale = zoom_scale
         return self
 
-    @staticmethod
-    def _measure_text(text, font, normal_font):
-        """Column width that fits ``text``, from the real advances of its font."""
-        name, size = font
-        base_name, base_size = normal_font
-        return _metrics.column_width(text, size, base_size, name, base_name)
-
     def _normal_font(self):
         """The workbook's normal font, as ``(name, point_size)``.
 
@@ -932,8 +1011,18 @@ class WorksheetToolkit:
             getattr(normal, "sz", None) or DEFAULT_FONT.sz,
         )
 
-    def _iter_cells(self, rows=None, columns=None, intersections_only=True):
+    def _iter_cells(self, rows=None, columns=None, intersections_only=True, cells=None):
         ws = self.worksheet
+
+        if cells is not None:
+            if rows is not None or columns is not None:
+                raise ValueError(
+                    "give either cells or rows/columns, not both. "
+                    f"cells={cells!r} already says which cells to use."
+                )
+            rows, columns = _resolve_cells(ws, cells)
+            # A range names its own block, so there is nothing to intersect or union.
+            intersections_only = True
 
         # Normalize rows and columns
         if rows is None:

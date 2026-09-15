@@ -171,7 +171,7 @@ def test_dimension_setters_return_the_toolkit_for_chaining(sheet):
 
 def test_column_width_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.merge_cells(range_string="A1:D1")
+    toolkit.merge_cells(cells="A1:D1")
     toolkit.set_column_width(columns=[1, 2, 3], width=15)
 
     ws = roundtrip(sheet)
@@ -184,7 +184,7 @@ def test_best_fit_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     sheet["C2"] = "c" * 10
 
     toolkit = WorksheetToolkit(sheet)
-    toolkit.merge_cells(range_string="A1:D1")
+    toolkit.merge_cells(cells="A1:D1")
     toolkit.set_column_best_fit(columns=[1, 2, 3])
 
     ws = roundtrip(sheet)

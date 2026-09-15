@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `cells=` accepts a range string on every method that names a range:
+  `set_font`, `set_fill`, `set_border`, `set_alignment`, `merge_cells`,
+  `unmerge_cells` and `set_outside_border`. It takes a block (`"A1:C3"`), whole
+  columns (`"B:D"`), whole rows (`"2:5"`) or a single cell (`"C3"`), and an
+  unbounded side is filled in from the used range. Mixing it with `rows=`,
+  `columns=` or the four coordinates raises.
+- **Breaking:** `range_string` is removed from `merge_cells` and
+  `unmerge_cells`. Use `cells=` instead; it is the same string.
+
 - `set_zoom_scale` is keyword-only, like every other method. `set_zoom_scale(85)`
   becomes `set_zoom_scale(zoom_scale=85)`.
 - `set_column_width`, `set_row_height` and `set_outside_border` take their required

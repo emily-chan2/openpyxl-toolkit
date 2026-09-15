@@ -1,4 +1,4 @@
-"""The package metadata itself is part of the contract."""
+"""Checks on the installed package metadata."""
 
 from importlib.metadata import version
 
