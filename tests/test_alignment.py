@@ -64,7 +64,7 @@ def test_reading_order_survives_the_round_trip(sheet, roundtrip):
 
 
 def test_changing_one_attribute_preserves_every_other_one(sheet, roundtrip):
-    """The merge guarantee: a later call must only touch what it names."""
+    """A later call changes only the attributes it names."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_alignment(
         rows=1,

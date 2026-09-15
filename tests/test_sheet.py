@@ -36,12 +36,12 @@ def test_freeze_panes_at_b2_survives_the_round_trip(sheet, roundtrip):
 
 
 def test_merged_range_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).merge_cells(range_string="A1:C2")
+    WorksheetToolkit(sheet).merge_cells(cells="A1:C2")
 
     assert [str(cell_range) for cell_range in roundtrip(sheet).merged_cells.ranges] == ["A1:C2"]
 
 
-def test_merging_by_coordinates_produces_the_same_range_as_the_range_string(sheet, roundtrip):
+def test_merging_by_coordinates_produces_the_same_range_as_cells(sheet, roundtrip):
     WorksheetToolkit(sheet).merge_cells(start_row=1, start_column=1, end_row=2, end_column=3)
 
     assert [str(cell_range) for cell_range in roundtrip(sheet).merged_cells.ranges] == ["A1:C2"]
@@ -69,9 +69,7 @@ def test_zoom_scale_outside_the_allowed_span_is_rejected(sheet, zoom_scale):
 def test_sheet_level_methods_return_the_toolkit_for_chaining(sheet):
     toolkit = WorksheetToolkit(sheet)
 
-    chained = (
-        toolkit.freeze_panes("B2").merge_cells(range_string="A1:B1").set_zoom_scale(zoom_scale=120)
-    )
+    chained = toolkit.freeze_panes("B2").merge_cells(cells="A1:B1").set_zoom_scale(zoom_scale=120)
 
     assert chained is toolkit
 
@@ -208,7 +206,7 @@ def test_a_fill_across_a_merged_range_reaches_every_cell_in_the_file(sheet, tmp_
     """
     toolkit = WorksheetToolkit(sheet)
     sheet["A1"] = "heading"
-    toolkit.merge_cells(range_string="A1:C1")
+    toolkit.merge_cells(cells="A1:C1")
 
     toolkit.set_fill(rows=1, columns=[1, 2, 3], fill_type="solid", start_color="#FFD966")
 
@@ -313,9 +311,9 @@ def test_the_toolkit_rejects_anything_that_is_not_a_worksheet(sheet):
 def test_unmerge_cells_undoes_a_merge(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     sheet["A1"] = "heading"
-    toolkit.merge_cells(range_string="A1:C1")
+    toolkit.merge_cells(cells="A1:C1")
 
-    toolkit.unmerge_cells(range_string="A1:C1")
+    toolkit.unmerge_cells(cells="A1:C1")
 
     assert list(roundtrip(sheet).merged_cells.ranges) == []
 
@@ -331,16 +329,16 @@ def test_unmerge_cells_accepts_coordinates_too(sheet, roundtrip):
 
 
 def test_unmerging_a_range_that_is_not_merged_does_nothing(sheet):
-    """The caller asked for it to end up unmerged, and it is."""
-    WorksheetToolkit(sheet).unmerge_cells(range_string="A5:C5")
+    """Unmerging a range that is already unmerged is not an error."""
+    WorksheetToolkit(sheet).unmerge_cells(cells="A5:C5")
 
 
 def test_unmerging_is_repeatable(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     sheet["A1"] = "heading"
-    toolkit.merge_cells(range_string="A1:C1")
+    toolkit.merge_cells(cells="A1:C1")
 
-    toolkit.unmerge_cells(range_string="A1:C1").unmerge_cells(range_string="A1:C1")
+    toolkit.unmerge_cells(cells="A1:C1").unmerge_cells(cells="A1:C1")
 
     assert list(roundtrip(sheet).merged_cells.ranges) == []
 
@@ -348,7 +346,7 @@ def test_unmerging_is_repeatable(sheet, roundtrip):
 def test_an_unparseable_range_still_raises(sheet):
     """Only the not-merged case is forgiven, not a typo that is not a range at all."""
     with pytest.raises(ValueError):
-        WorksheetToolkit(sheet).unmerge_cells(range_string="nonsense")
+        WorksheetToolkit(sheet).unmerge_cells(cells="nonsense")
 
 
 @pytest.mark.parametrize("method", ["merge_cells", "unmerge_cells"])
