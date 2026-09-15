@@ -365,9 +365,9 @@ def test_the_unchanged_sentinel_reads_as_words(sheet):
     """It appears in every signature help() and an editor tooltip render."""
     import inspect
 
-    from openpyxl_toolkit.worksheet_toolkit import _UNCHANGED
+    from openpyxl_toolkit._sentinel import UNCHANGED
 
-    assert repr(_UNCHANGED) == "<unchanged>"
+    assert repr(UNCHANGED) == "<unchanged>"
     assert "<unchanged>" in str(inspect.signature(WorksheetToolkit.set_font))
     assert "object object at" not in str(inspect.signature(WorksheetToolkit.set_font))
 
