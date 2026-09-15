@@ -4,11 +4,25 @@ from numbers import Number
 
 from openpyxl.styles import DEFAULT_FONT, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.views import Selection
+from openpyxl.worksheet.worksheet import Worksheet
 
 from . import _metrics
 
-_UNCHANGED = object()
+__all__ = ["WorksheetToolkit"]
+
+
+class _Unchanged:
+    """Marker for a parameter the caller did not pass."""
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<unchanged>"
+
+
+_UNCHANGED = _Unchanged()
 
 # Excel's grid limits. openpyxl will create a cell outside them without complaint,
 # but the workbook can then never be saved, so they are rejected at the door.
@@ -167,7 +181,17 @@ class WorksheetToolkit:
         worksheet : openpyxl.worksheet.worksheet.Worksheet
             The openpyxl Worksheet object to operate on. All formatting and
             utility methods in this instance will apply to this worksheet.
+
+        Raises
+        ------
+        TypeError
+            If given anything other than a worksheet.
         """
+        if not isinstance(worksheet, Worksheet):
+            raise TypeError(
+                f"expected a Worksheet, got {type(worksheet).__name__}. "
+                f"A workbook's sheet is wb['Sheet name'] or wb.active."
+            )
         self.worksheet = worksheet
 
     def freeze_panes(self, cell=None):
@@ -201,23 +225,21 @@ class WorksheetToolkit:
     def merge_cells(
         self, *, range_string=None, start_row=None, start_column=None, end_row=None, end_column=None
     ):
-        """Merge a rectangular range of cells in the worksheet. You can either provide
-        `range_string` or all four start/end coordinates.
+        """Merge a rectangular range of cells.
+
+        Give either ``range_string`` or all four coordinates.
 
         Parameters
         ----------
         range_string : str, optional
-            A string representing the range to merge, e.g., 'A1:C3'.
-            If provided, start/end row/column are ignored.
-        start_row : int, optional
-            Row number of the top-left cell of the range.
-        start_column : int, optional
-            Column number of the top-left cell of the range.
-        end_row : int, optional
-            Row number of the bottom-right cell of the range.
-        end_column : int, optional
-            Column number of the bottom-right cell of the range.
+            The range to merge, such as 'A1:C3'. Takes precedence over the
+            coordinates if both are given.
+        start_row, start_column, end_row, end_column : int, optional
+            The top-left and bottom-right of the range.
         """
+        self._check_range_arguments(
+            "merge_cells", range_string, start_row, start_column, end_row, end_column
+        )
         self.worksheet.merge_cells(
             range_string=range_string,
             start_row=start_row,
@@ -226,6 +248,52 @@ class WorksheetToolkit:
             end_column=end_column,
         )
         return self
+
+    def unmerge_cells(
+        self, *, range_string=None, start_row=None, start_column=None, end_row=None, end_column=None
+    ):
+        """Undo a merge, taking the same arguments as :meth:`merge_cells`.
+
+        A range that is not merged is left alone. A range that cannot be parsed at all still raises.
+        """
+        self._check_range_arguments(
+            "unmerge_cells", range_string, start_row, start_column, end_row, end_column
+        )
+        if range_string is not None:
+            target = CellRange(range_string)
+        else:
+            target = CellRange(
+                min_col=start_column, min_row=start_row, max_col=end_column, max_row=end_row
+            )
+        if target not in self.worksheet.merged_cells.ranges:
+            return self
+
+        self.worksheet.unmerge_cells(
+            range_string=range_string,
+            start_row=start_row,
+            end_row=end_row,
+            start_column=start_column,
+            end_column=end_column,
+        )
+        return self
+
+    @staticmethod
+    def _check_range_arguments(name, range_string, start_row, start_column, end_row, end_column):
+        """Say which arguments are missing, rather than letting openpyxl say "expected int"."""
+        if range_string is not None:
+            return
+        corners = {
+            "start_row": start_row,
+            "start_column": start_column,
+            "end_row": end_row,
+            "end_column": end_column,
+        }
+        missing = [key for key, value in corners.items() if value is None]
+        if missing:
+            raise ValueError(
+                f"{name} needs either range_string, such as 'A1:C3', or all four "
+                f"coordinates. Missing: {', '.join(missing)}."
+            )
 
     def set_alignment(
         self,
@@ -404,7 +472,7 @@ class WorksheetToolkit:
         return self
 
     def set_outside_border(
-        self, *, start_row, end_row, start_column, end_column, style, color=_UNCHANGED
+        self, *, style, start_row, end_row, start_column, end_column, color=_UNCHANGED
     ):
         """Set a border only on the outside edges of a rectangular block of cells.
 
@@ -577,7 +645,7 @@ class WorksheetToolkit:
 
         return self
 
-    def set_column_width(self, *, columns=None, width):
+    def set_column_width(self, *, width, columns=None):
         """
         Set the width of one or more columns.
 
@@ -613,7 +681,7 @@ class WorksheetToolkit:
                 dimension.width = width
         return self
 
-    def set_row_height(self, *, rows=None, height):
+    def set_row_height(self, *, height, rows=None):
         """
         Set the height of one or more rows.
 
@@ -831,7 +899,7 @@ class WorksheetToolkit:
             cell.font = font
         return self
 
-    def set_zoom_scale(self, zoom_scale=100):
+    def set_zoom_scale(self, *, zoom_scale=100):
         """Set the zoom scale.
 
         Parameters
