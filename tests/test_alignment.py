@@ -146,7 +146,7 @@ def test_intersections_only_true_selects_the_grid_of_intersections(sheet, roundt
 
 
 def test_intersections_only_false_selects_the_union_of_rows_and_columns(sheet, roundtrip):
-    """Documents today's union semantics cell by cell, including the corners left alone."""
+    """Union semantics cell by cell, including the corners left alone."""
     fill(sheet, rows=3, columns=3)
 
     WorksheetToolkit(sheet).set_alignment(

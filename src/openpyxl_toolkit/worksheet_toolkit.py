@@ -81,13 +81,18 @@ class WorksheetToolkit:
         return f"<{type(self).__name__} {self.worksheet.title!r}>"
 
     def freeze_panes(self, cell: str | None = None) -> WorksheetToolkit:
-        """Freeze panes so that rows above and columns to the left of the given cell remain visible.
-        Pass None or an empty string to unfreeze panes.
+        """Freeze the rows above and the columns left of a cell. Those rows and columns
+        then stay in view as the sheet is scrolled.
 
         Parameters
         ----------
         cell : str, optional
-            The top-left cell to freeze panes at, e.g. 'B2'. If None, panes are unfrozen.
+            The top-left cell of the scrolling area, such as 'B2'. None or an empty
+            string unfreezes the panes.
+
+        Returns
+        -------
+        WorksheetToolkit
         """
         if cell is None or cell == "":
             # openpyxl clears the pane but leaves the three split selections behind,
@@ -107,16 +112,27 @@ class WorksheetToolkit:
         end_row: int | None = None,
         end_column: int | None = None,
     ) -> WorksheetToolkit:
-        """Merge a rectangular range of cells.
+        """Merge a rectangular range of cells into one.
 
-        Give either ``cells`` or all four coordinates.
+        The merged cell takes the value of the top-left cell; the rest are cleared.
+        Merging a range that is already merged does nothing.
 
         Parameters
         ----------
         cells : str, optional
-            The range to merge, such as 'A1:C3'.
+            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
         start_row, start_column, end_row, end_column : int, optional
-            The top-left and bottom-right of the range.
+            The top-left and bottom-right corners of the block.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If both ``cells`` and the coordinates are given, or if only some of the four
+            coordinates are.
         """
         target = resolve_range_arguments(
             "merge_cells", cells, start_row, start_column, end_row, end_column
@@ -142,12 +158,27 @@ class WorksheetToolkit:
         end_row: int | None = None,
         end_column: int | None = None,
     ) -> WorksheetToolkit:
-        """Undo a merge, taking the same arguments as :meth:`merge_cells`.
+        """Undo a merge, taking the same arguments as ``merge_cells``.
 
-        Give ``cells`` a range such as 'A1:C3', or all four coordinates.
+        A range that is not merged is left alone. A range that cannot be read at all
+        raises.
 
-        A range that is not merged is left alone. A range that cannot be parsed
-        at all raises.
+        Parameters
+        ----------
+        cells : str, optional
+            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
+        start_row, start_column, end_row, end_column : int, optional
+            The top-left and bottom-right corners of the block.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If both ``cells`` and the coordinates are given, or if only some of the four
+            coordinates are.
         """
         target = resolve_range_arguments(
             "unmerge_cells", cells, start_row, start_column, end_row, end_column
@@ -189,34 +220,54 @@ class WorksheetToolkit:
         indent: float | Unchanged = UNCHANGED,
         reading_order: ReadingOrder | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
-        """Set the alignment of cells defined by rows and columns. If rows and columns are empty or
-        None, applies to all cells.
+        """Set how text sits inside its cells.
 
         Parameters
         ----------
-        rows : List[int], optional
-        columns : List[int], optional
-        intersections_only : bool
-            If True, then alignment is applied to only the cells that have a row number in the rows
-            argument and a column number in the columns argument.
-            If False, then the alignment is applied to any cell in the given rows and any cell in
-            the given columns.
-            Only considered if both rows and columns are provided.
+        cells : str, optional
+            The cells to format, as a range: a block such as 'A1:C3', whole columns
+            such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
+            this or ``rows`` and ``columns``, not both.
+        rows : list of int, optional
+            Row numbers. Defaults to every row in use.
+        columns : list of int, optional
+            Column numbers. Defaults to every column in use.
+        intersections_only : bool, optional
+            True, the default, formats the cells where the given rows and the given
+            columns cross. False formats every cell in those rows and every cell in
+            those columns, which is a cross rather than a block. Only considered when
+            both ``rows`` and ``columns`` are given.
         horizontal : str, optional
-            Horizontal alignment: 'general', 'left', 'center', 'right', 'fill', 'justify',
-            'centerContinuous', or 'distributed'.
+            'general', 'left', 'center', 'right', 'fill', 'justify',
+            'centerContinuous' or 'distributed'.
         vertical : str, optional
-            Vertical alignment: 'top', 'center', 'bottom', 'justify', 'distributed'.
+            'top', 'center', 'bottom', 'justify' or 'distributed'.
         text_rotation : int, optional
-            Degrees, 0 to 180. 255 is the separate case: letters stacked one above
-            the next, reading downwards. Nothing between 181 and 254 is accepted.
+            Degrees, 0 to 180. 255 is the separate case: letters stacked one above the
+            next, reading downwards. Nothing between 181 and 254 is accepted.
         wrap_text : bool, optional
+            True breaks long text onto more than one line inside the cell.
         shrink_to_fit : bool, optional
+            True reduces the displayed font size until the text fits the column.
         indent : int, optional
             Indent levels, not spaces. Excel renders one level as roughly three
             characters of the normal font. 0 to 255.
         reading_order : int, optional
-            Text direction: 0 = Context (default), 1 = Left-to-right, 2 = Right-to-left.
+            Text direction: 0 leaves it to the text, 1 is left-to-right, 2 is
+            right-to-left.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` or ``columns`` is given a single number rather than a
+            list, or an index that is not an integer.
+        ValueError
+            If both ``cells`` and ``rows`` or ``columns`` are given, if ``cells``
+            cannot be read as a range, or if an index falls outside Excel's grid.
 
         Examples
         --------
@@ -274,22 +325,51 @@ class WorksheetToolkit:
         style: BorderStyle | None | Unchanged = UNCHANGED,
         color: str | None | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
-        """Set borders for specified cells.
+        """Set the border on one or more sides of each cell.
+
+        Sides that are not named keep the border they had. A colour on its own cannot
+        be applied to a side with no line.
 
         Parameters
         ----------
-        rows : List[int], optional
-        columns : List[int], optional
+        cells : str, optional
+            The cells to format, as a range: a block such as 'A1:C3', whole columns
+            such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
+            this or ``rows`` and ``columns``, not both.
+        rows : list of int, optional
+            Row numbers. Defaults to every row in use.
+        columns : list of int, optional
+            Column numbers. Defaults to every column in use.
         intersections_only : bool, optional
-        sides : str or tuple of str, optional
-            Sides to modify. Can include:
-            'top', 'bottom', 'left', 'right', 'diagonal_up', 'diagonal_down'.
+            True, the default, formats the cells where the given rows and the given
+            columns cross. False formats every cell in those rows and every cell in
+            those columns, which is a cross rather than a block. Only considered when
+            both ``rows`` and ``columns`` are given.
+        sides : str or list of str, optional
+            Which sides to change: 'top', 'bottom', 'left', 'right', 'diagonal_up' or
+            'diagonal_down'. Defaults to the four straight sides. One side may be
+            given on its own, without a list.
         style : str, optional
-            Border style. Can be:
-            'hair', 'thin','medium', 'thick', 'double', 'dotted', 'dashed','mediumDashed',
-            'mediumDashDot', 'mediumDashDotDot', 'dashDot', 'dashDotDot', 'slantDashDot'.
+            'hair', 'thin', 'medium', 'thick', 'double', 'dotted', 'dashed',
+            'mediumDashed', 'mediumDashDot', 'mediumDashDotDot', 'dashDot',
+            'dashDotDot' or 'slantDashDot'. None removes the line.
         color : str, optional
-            Hex color code, e.g., '#ff0000'.
+            Hex color code, such as '#ff0000'.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` or ``columns`` is given a single number rather than a
+            list, or an index that is not an integer.
+        ValueError
+            If a side is not one of the six names, if a colour is given for a side
+            with no line and no ``style`` to draw one, if both ``cells`` and
+            ``rows`` or ``columns`` are given, or if an index falls outside
+            Excel's grid.
 
         Examples
         --------
@@ -303,7 +383,8 @@ class WorksheetToolkit:
         or several, so a single side needs no comma:
 
         >>> toolkit.set_border(
-        ...     rows=[2], columns=[2], sides='diagonal_up', style='thin', color='#00ff00'
+        ...     rows=[2], columns=[2], sides='diagonal_up',
+        ...     style='thin', color='#00ff00',
         ... )
         """
         if isinstance(sides, str):
@@ -393,24 +474,28 @@ class WorksheetToolkit:
         end_column: int | None = None,
         color: str | None | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
-        """Set a border only on the outside edges of a rectangular block of cells.
+        """Draw a border around the edge of a block, leaving the inside alone.
 
         Parameters
         ----------
-        start_row : int
-            First row of the block.
-        end_row : int
-            Last row of the block.
-        start_column : int
-            First column of the block.
-        end_column : int
-            Last column of the block.
-        style : str, optional
-            Border style. Can be:
-            'hair', 'thin','medium', 'thick', 'double', 'dotted', 'dashed','mediumDashed',
-            'mediumDashDot', 'mediumDashDotDot', 'dashDot', 'dashDotDot', 'slantDashDot'.
+        style : str
+            Border style, as in ``set_border``. Required.
+        cells : str, optional
+            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
+        start_row, start_column, end_row, end_column : int, optional
+            The top-left and bottom-right corners of the block.
         color : str, optional
-            Hex color code, e.g., '#ff0000'.
+            Hex color code, such as '#000000'.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If both ``cells`` and the coordinates are given, if only some of the four
+            coordinates are, or if ``cells`` cannot be read as a range.
 
         Examples
         --------
@@ -487,11 +572,10 @@ class WorksheetToolkit:
         max_width: float | None = None,
         measure: MeasureText | None = None,
     ) -> WorksheetToolkit:
-        """Fit columns to their widest cell.
+        """Widen each column to fit its widest cell.
 
-        Widths come from the real per-character advances of Calibri, so a column of
-        narrow letters is not given the same width as one of capitals. Excel's own
-        formula is used to turn that into a column width:
+        Every character is measured at its own width in the font being used. Excel's
+        own formula turns the total into a column width:
 
             width = (pixels of text + 5 padding pixels) / max digit width
 
@@ -499,15 +583,17 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        columns : List[int], optional
+        columns : list of int, optional
             Column numbers to fit. Defaults to every column in use.
         padding : float, optional
-            Extra width on top of the fitted value. Defaults to 0; Excel's own
-            5 pixels of cell padding are already part of the formula.
-        ignore_rows : List[int], optional
-            Row numbers to leave out when measuring.
+            Extra width on top of the fitted value. Defaults to 0; Excel's own 5
+            pixels of cell padding are already part of the formula.
+        ignore_rows : list of int, optional
+            Row numbers to leave out when measuring. A merged banner in row 1 is the
+            usual reason: its value is stored in the top-left cell, so it would size
+            that one column to the whole banner.
         ignore_formulas : bool, optional
-            If True, cells holding formulas are not measured. The formula text is
+            True, the default, leaves formula cells unmeasured. The formula text is
             not what the reader sees, so measuring it oversizes the column.
         min_width : float, optional
             Lower bound on the result.
@@ -515,19 +601,33 @@ class WorksheetToolkit:
             Upper bound. Defaults to Excel's own maximum of 255.
         measure : callable, optional
             ``measure(text, font, normal_font) -> width``, where each font is a
-            ``(name, point_size)`` pair: the cell's own font, and the workbook's
-            normal font that Excel's width unit is defined in. Supply this for a
-            face with no built-in table.
+            ``(name, point_size)`` pair: the cell's own font, and the workbook's normal
+            font that Excel's width unit is defined in. Supply this for a font face with
+            no built-in table.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``columns`` is given a single number rather than a list, or an index that
+            is not an integer.
+        ValueError
+            If a column falls outside Excel's grid.
 
         Notes
         -----
-        - Text is assumed to be on one line; wrapped text is not accounted for.
-        - Only dates and times are rendered as Excel displays them. Other number
-          formats are measured as the value is stored, so a currency or percentage
-          column may come out narrower than it needs to be.
-        - Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman,
-          Courier New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face
-          is measured with Calibri's advances unless ``measure`` is given.
+        Text is assumed to be on one line; wrapped text is not accounted for.
+
+        Only dates and times are rendered as Excel displays them. Other number formats
+        are measured as the value is stored, so a currency or percentage column may
+        come out narrower than it needs to be.
+
+        Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman,
+        Courier New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is
+        measured with Calibri's character widths unless ``measure`` is given.
         """
         ws = self.worksheet
         if columns is None:
@@ -580,17 +680,28 @@ class WorksheetToolkit:
         return self
 
     def set_column_width(self, *, width: float, columns: IndexSelection = None) -> WorksheetToolkit:
-        """
-        Set the width of one or more columns.
+        """Set the width of one or more columns.
 
         Parameters
         ----------
-        columns : List[int]
-            Column numbers to modify.
         width : float
             Column width in Excel character units, not pixels. Required: there is no
-            existing value to leave alone, so omitting it cannot mean anything.
-            A width of 0 hides the column, which is how Excel stores a zero.
+            existing value to leave alone, so omitting it cannot mean anything. A
+            width of 0 hides the column.
+        columns : list of int, optional
+            Column numbers to modify. Defaults to every column in use.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``columns`` is given a single number rather than a list, or an index that
+            is not an integer.
+        ValueError
+            If ``width`` is negative, or if a column falls outside Excel's grid.
         """
         if width < 0:
             raise ValueError(f"width must not be negative, got {width}")
@@ -614,16 +725,27 @@ class WorksheetToolkit:
         return self
 
     def set_row_height(self, *, height: float, rows: IndexSelection = None) -> WorksheetToolkit:
-        """
-        Set the height of one or more rows.
+        """Set the height of one or more rows.
 
         Parameters
         ----------
-        rows : List[int]
-            Row numbers to modify.
         height : float
             Row height in points. Required, for the same reason as the column width.
             A height of 0 hides the row.
+        rows : list of int, optional
+            Row numbers to modify. Defaults to every row in use.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` is given a single number rather than a list, or an index that is
+            not an integer.
+        ValueError
+            If ``height`` is negative, or if a row falls outside Excel's grid.
         """
         if height < 0:
             raise ValueError(f"height must not be negative, got {height}")
@@ -653,30 +775,52 @@ class WorksheetToolkit:
         start_color: str | Unchanged = UNCHANGED,
         end_color: str | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
-        """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
-        applies to all cells.
+        """Set the background fill of cells.
+
+        A fill has two parts: a pattern and the colours it is drawn in. A colour with
+        no pattern has nothing to show through, so a cell with no fill yet needs both.
 
         Parameters
         ----------
-        rows : List[int], optional
-        columns : List[int], optional
+        cells : str, optional
+            The cells to format, as a range: a block such as 'A1:C3', whole columns
+            such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
+            this or ``rows`` and ``columns``, not both.
+        rows : list of int, optional
+            Row numbers. Defaults to every row in use.
+        columns : list of int, optional
+            Column numbers. Defaults to every column in use.
         intersections_only : bool, optional
-            If True, then fill is applied to only the cells that have a row number in the rows
-            argument and a column number in the columns argument.
-            If False, then the fill is applied to any cell in the given rows and any cell in the
-            given columns.
-            Only considered if both rows and columns are provided.
+            True, the default, formats the cells where the given rows and the given
+            columns cross. False formats every cell in those rows and every cell in
+            those columns, which is a cross rather than a block. Only considered when
+            both ``rows`` and ``columns`` are given.
         fill_type : str, optional
-            Type of fill/pattern. Common values: 'solid', 'gray125', 'darkGrid', etc. Use None for
-            transparent fill.
+            The pattern. 'solid' is the common one; the rest are hatches and shades
+            such as 'gray125', 'lightGrid' and 'darkTrellis'. None removes the fill.
         start_color : str, optional
-            Hex color code for the primary fill color (foreground). For solid fills,
-            this is the visible background color.
+            Hex color code for the foreground. For a solid fill this is the colour
+            that shows.
         end_color : str, optional
-            Hex color code for the secondary fill color (background). This is only
-            relevant for patterned fills (e.g., 'trellis', 'cross', stripes).
-            For solid fills, this value is ignored by Excel and usually does not
-            need to be provided.
+            Hex color code for the background, which only a patterned fill draws.
+            Excel ignores it for a solid fill.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` or ``columns`` is given a single number rather than a
+            list, or an index that is not an integer.
+        ValueError
+            If a colour is given as None, which cannot clear a fill that always
+            carries one; if a colour is given for a cell with no pattern and no
+            ``fill_type`` to make one; if a ``fill_type`` is given for a cell
+            with no colour, which would paint it black; if both ``cells`` and
+            ``rows`` or ``columns`` are given; or if an index falls outside
+            Excel's grid.
 
         Examples
         --------
@@ -779,29 +923,51 @@ class WorksheetToolkit:
         strike: bool | None | Unchanged = UNCHANGED,
         color: str | None | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
-        """Set the font of cells defined by rows and columns. If rows and columns are empty or None,
-        applies to all cells.
+        """Set the font of cells.
 
         Parameters
         ----------
-        rows : List[int], optional
-        columns : List[int], optional
-        intersections_only : bool
-            If True, then font is applied to only the cells that have a row number in the rows
-            argument and a column number in the columns argument.
-            If False, then the font is applied to any cell in the given rows and any cell in the
-            given columns.
-            Only considered if both rows and columns are provided.
+        cells : str, optional
+            The cells to format, as a range: a block such as 'A1:C3', whole columns
+            such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
+            this or ``rows`` and ``columns``, not both.
+        rows : list of int, optional
+            Row numbers. Defaults to every row in use.
+        columns : list of int, optional
+            Column numbers. Defaults to every column in use.
+        intersections_only : bool, optional
+            True, the default, formats the cells where the given rows and the given
+            columns cross. False formats every cell in those rows and every cell in
+            those columns, which is a cross rather than a block. Only considered when
+            both ``rows`` and ``columns`` are given.
         name : str, optional
-            Name of font face
-        size : int, optional
+            Name of the font face, such as 'Calibri'.
+        size : float, optional
+            Size in points.
         bold : bool, optional
+            True draws the text in the bold weight of the face.
         italic : bool, optional
+            True draws the text in the italic style of the face.
         underline : str, optional
-            'single', 'double', 'singleAccounting', 'doubleAccounting', or None
+            'single', 'double', 'singleAccounting' or 'doubleAccounting'. None removes
+            the underline.
         strike : bool, optional
+            True draws a line through the text.
         color : str, optional
-            Hex color code, e.g., '#f4d2d3'
+            Hex color code, such as '#f4d2d3'. None clears the colour.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` or ``columns`` is given a single number rather than a
+            list, or an index that is not an integer.
+        ValueError
+            If both ``cells`` and ``rows`` or ``columns`` are given, if ``cells``
+            cannot be read as a range, or if an index falls outside Excel's grid.
 
         Examples
         --------
@@ -811,7 +977,9 @@ class WorksheetToolkit:
 
         Size 16 on the four cells where rows 1 and 2 meet columns 1 and 2:
 
-        >>> toolkit.set_font(rows=[1, 2], columns=[1, 2], intersections_only=True, size=16)
+        >>> toolkit.set_font(
+        ...     rows=[1, 2], columns=[1, 2], intersections_only=True, size=16
+        ... )
 
         With ``intersections_only=False``, all of rows 1 and 2 and all of columns
         1 and 2, which is a cross rather than a block:
@@ -846,12 +1014,21 @@ class WorksheetToolkit:
         return self
 
     def set_zoom_scale(self, *, zoom_scale: int = 100) -> WorksheetToolkit:
-        """Set the zoom scale.
+        """Set how far the sheet is zoomed in when it is opened.
 
         Parameters
         ----------
         zoom_scale : int, optional
-            Zoom percentage (10-400). Defaults to 100.
+            Percentage, 10 to 400. Defaults to 100.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If ``zoom_scale`` is outside 10 to 400.
         """
         if not 10 <= zoom_scale <= 400:
             raise ValueError("zoom_scale must be between 10 and 400")

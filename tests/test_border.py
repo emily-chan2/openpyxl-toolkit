@@ -130,7 +130,7 @@ def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roun
 
 
 def test_a_style_with_no_colour_is_allowed(sheet, roundtrip):
-    """Excel draws an uncoloured border in the automatic colour, which is what we want."""
+    """An uncoloured border is drawn in Excel's automatic colour, which is wanted."""
     WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), style="thin")
 
     assert roundtrip(sheet).cell(row=1, column=1).border.top.style == "thin"

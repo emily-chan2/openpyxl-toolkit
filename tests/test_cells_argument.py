@@ -98,7 +98,7 @@ def test_unmerge_cells_accepts_it(sheet, roundtrip):
 
 
 def test_range_string_is_gone(sheet):
-    """Replaced by cells. openpyxl still uses the name internally; the toolkit does not."""
+    """Replaced by cells. openpyxl still uses the name; the toolkit does not."""
     with pytest.raises(TypeError, match="range_string"):
         WorksheetToolkit(sheet).merge_cells(range_string="A1:C1")
 
