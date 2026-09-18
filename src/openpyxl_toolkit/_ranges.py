@@ -135,6 +135,19 @@ def iter_cells(
     intersections_only: bool = True,
     cells: str | None = None,
 ) -> Iterator[AnyCell]:
+    """Yield the cells a call is about, once each.
+
+    Takes a range string, or lists of row and column numbers, but not both. With
+    neither, every cell in the used range is yielded.
+
+    Given both rows and columns, ``intersections_only`` chooses between the two
+    readings: True yields the block where they cross, False yields every cell in
+    those rows and every cell in those columns, which is a cross. A range string
+    names its own block, so it is always the first.
+
+    Cells are created as they are yielded, so the caller checks the indexes
+    before iterating rather than after.
+    """
     if cells is not None:
         if rows is not None or columns is not None:
             raise ValueError(

@@ -22,6 +22,9 @@ DOCUMENTED = sorted(
     for name, member in vars(WorksheetToolkit).items()
     if inspect.isfunction(member) and ">>>" in (member.__doc__ or "")
 )
+# The class carries examples of its own, and they are the first ones anyone sees.
+if ">>>" in (WorksheetToolkit.__doc__ or ""):
+    DOCUMENTED.append("WorksheetToolkit")
 
 
 def _populated_sheet():
@@ -41,7 +44,8 @@ def test_the_examples_in_a_docstring_run(name):
         "sheet": sheet,
         "toolkit": WorksheetToolkit(sheet),
     }
-    examples = doctest.DocTestParser().get_examples(getattr(WorksheetToolkit, name).__doc__)
+    owner = WorksheetToolkit if name == "WorksheetToolkit" else getattr(WorksheetToolkit, name)
+    examples = doctest.DocTestParser().get_examples(owner.__doc__)
     source = "".join(example.source for example in examples)
 
     exec(compile(source, f"<{name} docstring>", "exec"), namespace)
@@ -55,4 +59,5 @@ def test_the_documented_methods_are_the_ones_expected():
         "set_fill",
         "set_font",
         "set_outside_border",
+        "WorksheetToolkit",
     ]
