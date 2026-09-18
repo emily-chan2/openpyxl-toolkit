@@ -68,8 +68,11 @@ python_version = "3.10"
 strict = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q --strict-markers"
+# The README is in here so its examples run as doctests, output and all. The
+# docstring examples omit the value each call returns, so doctest cannot check
+# them; tests/test_examples.py runs those instead.
+testpaths = ["tests", "README.md"]
+addopts = "-q --strict-markers --doctest-glob=*.md"
 
 [tool.ruff]
 line-length = 100
