@@ -80,7 +80,7 @@ def test_sheet_level_methods_return_the_toolkit_for_chaining(sheet):
 def test_selecting_rows_only_touches_every_column_of_those_rows(sheet, roundtrip):
     _grid(sheet, 3, 3)
 
-    WorksheetToolkit(sheet).set_font(rows=2, bold=True)
+    WorksheetToolkit(sheet).set_font(rows=[2], bold=True)
 
     assert _bold_cells(roundtrip(sheet)) == {"A2", "B2", "C2"}
 
@@ -88,7 +88,7 @@ def test_selecting_rows_only_touches_every_column_of_those_rows(sheet, roundtrip
 def test_selecting_columns_only_touches_every_row_of_those_columns(sheet, roundtrip):
     _grid(sheet, 3, 3)
 
-    WorksheetToolkit(sheet).set_font(columns=2, bold=True)
+    WorksheetToolkit(sheet).set_font(columns=[2], bold=True)
 
     assert _bold_cells(roundtrip(sheet)) == {"B1", "B2", "B3"}
 
@@ -114,7 +114,7 @@ def test_intersection_selection_touches_only_the_crossings(sheet, roundtrip):
 def test_union_selection_touches_whole_rows_and_whole_columns(sheet, roundtrip):
     _grid(sheet, 3, 3)
 
-    WorksheetToolkit(sheet).set_font(rows=1, columns=1, intersections_only=False, bold=True)
+    WorksheetToolkit(sheet).set_font(rows=[1], columns=[1], intersections_only=False, bold=True)
 
     assert _bold_cells(roundtrip(sheet)) == {"A1", "B1", "C1", "A2", "A3"}
 
@@ -133,7 +133,7 @@ def test_a_later_font_attribute_does_not_reset_an_earlier_one(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
 
     toolkit.set_font(rows=[1, 2], columns=[1, 2], bold=True)
-    toolkit.set_font(rows=1, columns=[1, 2, 3], size=16)
+    toolkit.set_font(rows=[1], columns=[1, 2, 3], size=16)
 
     reloaded = roundtrip(sheet)
     assert [
@@ -148,7 +148,7 @@ def test_a_later_selection_does_not_reset_cells_outside_it(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
 
     toolkit.set_font(rows=[1, 2], columns=[1, 2], bold=True)
-    toolkit.set_font(rows=1, columns=[1, 2, 3], size=16)
+    toolkit.set_font(rows=[1], columns=[1, 2, 3], size=16)
 
     reloaded = roundtrip(sheet)
     assert [
@@ -191,7 +191,7 @@ def test_union_selection_does_not_reach_rows_the_caller_never_asked_for(sheet, r
     """Row 3 is neither in the requested rows nor in the sheet's data, so it must stay plain."""
     _grid(sheet, 2, 2)
 
-    WorksheetToolkit(sheet).set_font(rows=4, columns=1, intersections_only=False, bold=True)
+    WorksheetToolkit(sheet).set_font(rows=[4], columns=[1], intersections_only=False, bold=True)
 
     assert _bold_cells(roundtrip(sheet)) == {"A1", "A2", "A4", "B4"}
 
@@ -208,7 +208,7 @@ def test_a_fill_across_a_merged_range_reaches_every_cell_in_the_file(sheet, tmp_
     sheet["A1"] = "heading"
     toolkit.merge_cells(cells="A1:C1")
 
-    toolkit.set_fill(rows=1, columns=[1, 2, 3], fill_type="solid", start_color="#FFD966")
+    toolkit.set_fill(rows=[1], columns=[1, 2, 3], fill_type="solid", start_color="#FFD966")
 
     path = tmp_path / "book.xlsx"
     sheet.parent.save(path)
@@ -242,17 +242,17 @@ def test_unfreezing_leaves_no_pane_state_behind(sheet, roundtrip):
 def test_a_column_beyond_the_grid_is_rejected(sheet):
     """openpyxl creates such a cell unvalidated, and the workbook can then never be saved."""
     with pytest.raises(ValueError, match="column 20000"):
-        WorksheetToolkit(sheet).set_font(rows=1, columns=20000, bold=True)
+        WorksheetToolkit(sheet).set_font(rows=[1], columns=[20000], bold=True)
 
 
 def test_a_row_beyond_the_grid_is_rejected(sheet):
     with pytest.raises(ValueError, match="row 2000000"):
-        WorksheetToolkit(sheet).set_font(rows=2000000, columns=1, bold=True)
+        WorksheetToolkit(sheet).set_font(rows=[2000000], columns=[1], bold=True)
 
 
 def test_a_column_of_zero_is_rejected(sheet):
     with pytest.raises(ValueError, match="column 0"):
-        WorksheetToolkit(sheet).set_font(rows=1, columns=0, bold=True)
+        WorksheetToolkit(sheet).set_font(rows=[1], columns=[0], bold=True)
 
 
 def test_rejecting_a_bad_index_leaves_the_workbook_saveable(sheet, roundtrip):
@@ -261,7 +261,7 @@ def test_rejecting_a_bad_index_leaves_the_workbook_saveable(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
 
     with pytest.raises(ValueError):
-        toolkit.set_font(rows=1, columns=20000, bold=True)
+        toolkit.set_font(rows=[1], columns=[20000], bold=True)
 
     assert roundtrip(sheet)["A1"].value == "r1c1"
 
@@ -270,8 +270,8 @@ def test_the_dimension_setters_are_bounds_checked_too(sheet):
     """16385 is past Excel's limit but inside get_column_letter's, so only our check catches it."""
     toolkit = WorksheetToolkit(sheet)
     for call in (
-        lambda: toolkit.set_column_width(columns=16385, width=12),
-        lambda: toolkit.set_column_best_fit(columns=16385),
+        lambda: toolkit.set_column_width(columns=[16385], width=12),
+        lambda: toolkit.set_column_best_fit(columns=[16385]),
     ):
         with pytest.raises(ValueError, match="outside the worksheet"):
             call()
@@ -279,7 +279,7 @@ def test_the_dimension_setters_are_bounds_checked_too(sheet):
 
 def test_set_row_height_is_bounds_checked(sheet):
     with pytest.raises(ValueError, match="outside the worksheet"):
-        WorksheetToolkit(sheet).set_row_height(rows=2000000, height=20)
+        WorksheetToolkit(sheet).set_row_height(rows=[2000000], height=20)
 
 
 def test_best_fit_rejects_a_bad_column_before_materialising_it(sheet, roundtrip):
@@ -295,9 +295,9 @@ def test_a_fractional_index_is_rejected(sheet):
     """A float index writes a cell reference like A1.5 that openpyxl cannot reload."""
     toolkit = WorksheetToolkit(sheet)
     with pytest.raises(TypeError, match="must be an integer"):
-        toolkit.set_font(rows=1.5, columns=1, bold=True)
+        toolkit.set_font(rows=[1.5], columns=[1], bold=True)
     with pytest.raises(TypeError, match="must be an integer"):
-        toolkit.set_row_height(rows=1.5, height=20)
+        toolkit.set_row_height(rows=[1.5], height=20)
 
 
 def test_the_toolkit_rejects_anything_that_is_not_a_worksheet(sheet):
@@ -375,3 +375,28 @@ def test_the_unchanged_sentinel_reads_as_words(sheet):
 def test_zoom_scale_is_keyword_only(sheet):
     with pytest.raises(TypeError):
         WorksheetToolkit(sheet).set_zoom_scale(85)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda t: t.set_font(rows=1, bold=True),
+        lambda t: t.set_font(columns=1, bold=True),
+        lambda t: t.set_fill(rows=1, fill_type="solid", start_color="#ff0000"),
+        lambda t: t.set_alignment(columns=1, horizontal="center"),
+        lambda t: t.set_border(rows=1, style="thin"),
+        lambda t: t.set_column_width(columns=1, width=10),
+        lambda t: t.set_row_height(rows=1, height=10),
+        lambda t: t.set_column_best_fit(columns=1),
+    ],
+    ids=lambda call: "",
+)
+def test_a_single_row_or_column_number_is_rejected(sheet, call):
+    """rows= and columns= take a list. A bare number used to be wrapped in one."""
+    with pytest.raises(TypeError, match=r"takes a list of numbers"):
+        call(WorksheetToolkit(sheet))
+
+
+def test_the_rejection_shows_the_list_to_write_instead(sheet):
+    with pytest.raises(TypeError, match=r"Write columns=\[3\] rather than columns=3"):
+        WorksheetToolkit(sheet).set_column_width(columns=3, width=10)

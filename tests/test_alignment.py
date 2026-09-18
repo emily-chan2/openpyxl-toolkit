@@ -22,43 +22,43 @@ def horizontals(sheet, rows, columns):
 
 
 def test_horizontal_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, horizontal="center")
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], horizontal="center")
 
     assert roundtrip(sheet)["A1"].alignment.horizontal == "center"
 
 
 def test_vertical_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, vertical="top")
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], vertical="top")
 
     assert roundtrip(sheet)["A1"].alignment.vertical == "top"
 
 
 def test_wrap_text_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, wrap_text=True)
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], wrap_text=True)
 
     assert roundtrip(sheet)["A1"].alignment.wrapText is True
 
 
 def test_shrink_to_fit_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, shrink_to_fit=True)
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], shrink_to_fit=True)
 
     assert roundtrip(sheet)["A1"].alignment.shrinkToFit is True
 
 
 def test_indent_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, indent=3)
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], indent=3)
 
     assert roundtrip(sheet)["A1"].alignment.indent == 3
 
 
 def test_text_rotation_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, text_rotation=45)
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], text_rotation=45)
 
     assert roundtrip(sheet)["A1"].alignment.textRotation == 45
 
 
 def test_reading_order_survives_the_round_trip(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, reading_order=2)
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], reading_order=2)
 
     assert roundtrip(sheet)["A1"].alignment.readingOrder == 2
 
@@ -67,8 +67,8 @@ def test_changing_one_attribute_preserves_every_other_one(sheet, roundtrip):
     """A later call changes only the attributes it names."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_alignment(
-        rows=1,
-        columns=1,
+        rows=[1],
+        columns=[1],
         horizontal="center",
         vertical="top",
         wrap_text=True,
@@ -78,7 +78,7 @@ def test_changing_one_attribute_preserves_every_other_one(sheet, roundtrip):
         reading_order=1,
     )
 
-    toolkit.set_alignment(rows=1, columns=1, vertical="bottom")
+    toolkit.set_alignment(rows=[1], columns=[1], vertical="bottom")
 
     alignment = roundtrip(sheet)["A1"].alignment
     assert (
@@ -94,9 +94,9 @@ def test_changing_one_attribute_preserves_every_other_one(sheet, roundtrip):
 
 def test_attributes_set_by_separate_calls_accumulate(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_alignment(rows=1, columns=1, horizontal="right")
-    toolkit.set_alignment(rows=1, columns=1, wrap_text=True)
-    toolkit.set_alignment(rows=1, columns=1, indent=4)
+    toolkit.set_alignment(rows=[1], columns=[1], horizontal="right")
+    toolkit.set_alignment(rows=[1], columns=[1], wrap_text=True)
+    toolkit.set_alignment(rows=[1], columns=[1], indent=4)
 
     alignment = roundtrip(sheet)["A1"].alignment
     assert (alignment.horizontal, alignment.wrapText, alignment.indent) == ("right", True, 4)
@@ -124,7 +124,7 @@ def test_rows_alone_select_whole_rows(sheet, roundtrip):
 def test_columns_alone_select_whole_columns(sheet, roundtrip):
     fill(sheet, rows=3, columns=3)
 
-    WorksheetToolkit(sheet).set_alignment(columns=2, horizontal="center")
+    WorksheetToolkit(sheet).set_alignment(columns=[2], horizontal="center")
 
     selected = {
         cell for cell, value in horizontals(roundtrip(sheet), 3, 3).items() if value == "center"
@@ -169,7 +169,7 @@ def test_intersections_only_false_selects_the_union_of_rows_and_columns(sheet, r
 def test_intersections_only_false_is_ignored_when_only_rows_are_given(sheet, roundtrip):
     fill(sheet, rows=2, columns=2)
 
-    WorksheetToolkit(sheet).set_alignment(rows=2, intersections_only=False, horizontal="center")
+    WorksheetToolkit(sheet).set_alignment(rows=[2], intersections_only=False, horizontal="center")
 
     selected = {
         cell for cell, value in horizontals(roundtrip(sheet), 2, 2).items() if value == "center"
@@ -180,13 +180,13 @@ def test_intersections_only_false_is_ignored_when_only_rows_are_given(sheet, rou
 def test_returns_the_toolkit_for_chaining(sheet):
     toolkit = WorksheetToolkit(sheet)
 
-    assert toolkit.set_alignment(rows=1, columns=1, horizontal="center") is toolkit
+    assert toolkit.set_alignment(rows=[1], columns=[1], horizontal="center") is toolkit
 
 
 def test_justify_last_line_survives_an_unrelated_alignment_change(sheet, roundtrip):
     sheet["A1"].alignment = Alignment(horizontal="left", justifyLastLine=True)
 
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, horizontal="center")
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], horizontal="center")
 
     assert roundtrip(sheet)["A1"].alignment.justifyLastLine is True
 
@@ -194,7 +194,7 @@ def test_justify_last_line_survives_an_unrelated_alignment_change(sheet, roundtr
 def test_relative_indent_survives_an_unrelated_alignment_change(sheet, roundtrip):
     sheet["A1"].alignment = Alignment(horizontal="left", relativeIndent=2)
 
-    WorksheetToolkit(sheet).set_alignment(rows=1, columns=1, horizontal="center")
+    WorksheetToolkit(sheet).set_alignment(rows=[1], columns=[1], horizontal="center")
 
     assert roundtrip(sheet)["A1"].alignment.relativeIndent == 2
 

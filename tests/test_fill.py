@@ -25,7 +25,9 @@ def _painted(ws):
 
 def test_solid_fill_survives_the_round_trip(sheet, roundtrip):
     _grid(sheet)
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid", start_color="#f4d2d3")
+    WorksheetToolkit(sheet).set_fill(
+        rows=[1], columns=[1], fill_type="solid", start_color="#f4d2d3"
+    )
 
     fill = roundtrip(sheet)["A1"].fill
     assert (fill.fill_type, fill.start_color.rgb.upper()) == ("solid", "FFF4D2D3")
@@ -35,8 +37,8 @@ def test_fill_type_survives_a_later_colour_only_call(sheet, roundtrip):
     """Changing the colour must not throw away the pattern set by an earlier call."""
     _grid(sheet)
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_fill(rows=1, columns=1, fill_type="solid", start_color="#ff0000")
-    toolkit.set_fill(rows=1, columns=1, start_color="#00ff00")
+    toolkit.set_fill(rows=[1], columns=[1], fill_type="solid", start_color="#ff0000")
+    toolkit.set_fill(rows=[1], columns=[1], start_color="#00ff00")
 
     fill = roundtrip(sheet)["A1"].fill
     assert (fill.fill_type, fill.start_color.rgb.upper()) == ("solid", "FF00FF00")
@@ -46,8 +48,8 @@ def test_start_colour_survives_a_later_fill_type_only_call(sheet, roundtrip):
     """Changing the pattern must not throw away the colour set by an earlier call."""
     _grid(sheet)
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_fill(rows=1, columns=1, fill_type="solid", start_color="#ff0000")
-    toolkit.set_fill(rows=1, columns=1, fill_type="lightGrid")
+    toolkit.set_fill(rows=[1], columns=[1], fill_type="solid", start_color="#ff0000")
+    toolkit.set_fill(rows=[1], columns=[1], fill_type="lightGrid")
 
     fill = roundtrip(sheet)["A1"].fill
     assert (fill.fill_type, fill.start_color.rgb.upper()) == ("lightGrid", "FFFF0000")
@@ -58,9 +60,9 @@ def test_end_colour_survives_a_later_start_colour_call(sheet, roundtrip):
     _grid(sheet)
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_fill(
-        rows=1, columns=1, fill_type="lightGrid", start_color="#ff0000", end_color="#0000ff"
+        rows=[1], columns=[1], fill_type="lightGrid", start_color="#ff0000", end_color="#0000ff"
     )
-    toolkit.set_fill(rows=1, columns=1, start_color="#00ff00")
+    toolkit.set_fill(rows=[1], columns=[1], start_color="#00ff00")
 
     fill = roundtrip(sheet)["A1"].fill
     assert fill.end_color.rgb.upper() == "FF0000FF"
@@ -90,7 +92,7 @@ def test_union_selection_paints_whole_rows_and_whole_columns(sheet, roundtrip):
 
 def test_row_selection_without_columns_spans_the_used_range(sheet, roundtrip):
     _grid(sheet)
-    WorksheetToolkit(sheet).set_fill(rows=2, fill_type="solid", start_color="#ff0000")
+    WorksheetToolkit(sheet).set_fill(rows=[2], fill_type="solid", start_color="#ff0000")
 
     assert _painted(roundtrip(sheet)) == {"A2", "B2", "C2"}
 
@@ -108,7 +110,7 @@ def test_existing_theme_colour_is_kept_when_only_the_pattern_changes(sheet, roun
         patternType="solid", fgColor=Color(theme=9, tint=0.6), bgColor=Color(indexed=64)
     )
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="solid")
 
     colour = roundtrip(sheet)["A1"].fill.start_color
     assert (colour.type, colour.theme, colour.tint) == ("theme", 9, pytest.approx(0.6))
@@ -120,7 +122,7 @@ def test_existing_indexed_colour_is_kept_when_only_the_pattern_changes(sheet, ro
         patternType="solid", fgColor=Color(indexed=5), bgColor=Color(indexed=64)
     )
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="solid")
 
     colour = roundtrip(sheet)["A1"].fill.start_color
     assert (colour.type, colour.indexed) == ("indexed", 5)
@@ -132,7 +134,7 @@ def test_existing_automatic_colour_is_kept_when_only_the_pattern_changes(sheet, 
         patternType="solid", fgColor=Color(auto=True), bgColor=Color(indexed=64)
     )
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="solid")
 
     colour = roundtrip(sheet)["A1"].fill.start_color
     assert (colour.type, colour.auto) == ("auto", True)
@@ -142,7 +144,9 @@ def test_a_gradient_filled_cell_can_be_given_a_solid_fill(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = GradientFill(stop=("FFFFFFFF", "FFFF0000"))
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid", start_color="#00ff00")
+    WorksheetToolkit(sheet).set_fill(
+        rows=[1], columns=[1], fill_type="solid", start_color="#00ff00"
+    )
 
     fill = roundtrip(sheet)["A1"].fill
     assert (fill.fill_type, fill.start_color.rgb.upper()) == ("solid", "FF00FF00")
@@ -152,14 +156,14 @@ def test_a_colour_on_its_own_is_rejected(sheet):
     """A cell with no pattern cannot show a colour, so the call says so instead."""
     _grid(sheet)
     with pytest.raises(ValueError, match="fill_type='solid'"):
-        WorksheetToolkit(sheet).set_fill(rows=1, start_color="#f4d2d3")
+        WorksheetToolkit(sheet).set_fill(rows=[1], start_color="#f4d2d3")
 
 
 def test_a_colour_on_its_own_is_fine_when_the_cell_is_already_filled(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, start_color="#f4d2d3")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], start_color="#f4d2d3")
 
     assert roundtrip(sheet)["A1"].fill.start_color.rgb.upper() == "FFF4D2D3"
 
@@ -168,14 +172,14 @@ def test_a_pattern_with_no_colour_is_rejected(sheet):
     """A pattern with no colour paints the cell black, so it is rejected."""
     _grid(sheet)
     with pytest.raises(ValueError, match="start_color"):
-        WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="solid")
+        WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="solid")
 
 
 def test_a_pattern_with_no_colour_is_fine_when_the_cell_is_already_coloured(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="lightGrid")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="lightGrid")
 
     reloaded = roundtrip(sheet)["A1"].fill
     assert (reloaded.fill_type, reloaded.start_color.rgb) == ("lightGrid", "FF00FF00")
@@ -186,7 +190,7 @@ def test_removing_a_fill_is_still_allowed(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = PatternFill("solid", start_color="FF00FF00")
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type=None)
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type=None)
 
     assert roundtrip(sheet)["A1"].fill.fill_type is None
 
@@ -206,7 +210,7 @@ def test_a_failing_call_leaves_no_cell_in_the_range_painted(sheet, roundtrip, mo
 
     with pytest.raises(RuntimeError):
         WorksheetToolkit(sheet).set_fill(
-            rows=1, columns=[1, 2, 3], fill_type="solid", start_color="#ff0000"
+            rows=[1], columns=[1, 2, 3], fill_type="solid", start_color="#ff0000"
         )
 
     assert _painted(roundtrip(sheet)) == set()
@@ -218,7 +222,7 @@ def test_a_cell_does_not_share_a_colour_object_with_the_fill_it_was_read_from(sh
     header = PatternFill(patternType="solid", fgColor=Color(rgb="FF3366CC"))
     sheet["A1"].fill = header
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1, fill_type="lightGrid")
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1], fill_type="lightGrid")
     header.start_color.rgb = "FFFF0000"
 
     assert roundtrip(sheet)["A1"].fill.start_color.rgb == "FF3366CC"
@@ -229,7 +233,7 @@ def test_a_gradient_survives_a_call_that_asks_for_nothing(sheet, roundtrip):
     _grid(sheet)
     sheet["A1"].fill = GradientFill(stop=("FFFFFFFF", "FFFF0000"))
 
-    WorksheetToolkit(sheet).set_fill(rows=1, columns=1)
+    WorksheetToolkit(sheet).set_fill(rows=[1], columns=[1])
 
     assert roundtrip(sheet)["A1"].fill.tagname == "gradientFill"
 
@@ -240,4 +244,4 @@ def test_clearing_a_colour_is_rejected_rather_than_silently_repainting(sheet):
     toolkit = WorksheetToolkit(sheet)
     for kwargs in ({"start_color": None}, {"end_color": None}):
         with pytest.raises(ValueError, match="cannot clear a colour"):
-            toolkit.set_fill(rows=1, columns=1, **kwargs)
+            toolkit.set_fill(rows=[1], columns=[1], **kwargs)

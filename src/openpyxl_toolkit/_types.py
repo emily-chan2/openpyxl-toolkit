@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 #: the top-left one is a MergedCell, which carries style but not a value.
 AnyCell: TypeAlias = "Cell | MergedCell"
 
-#: Row or column numbers: one, several, or None for every one in use.
-IndexSelection: TypeAlias = "int | Iterable[int] | None"
+#: Row or column numbers, or None for every one in use.
+IndexSelection: TypeAlias = "Iterable[int] | None"
 
 #: A font as ``(name, point size)``.
 FontSpec: TypeAlias = "tuple[str, float]"
