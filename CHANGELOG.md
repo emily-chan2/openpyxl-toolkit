@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `set_number_format` sets the code Excel uses to display a value: `'0.00'`, `'"$"#,##0.00'`,
+  `'0.00%'`, `'yyyy-mm-dd'`, `';;;'` to show nothing. It takes the same `cells`, `rows` and
+  `columns` arguments as the other setters. A format that is not a string raises `TypeError`:
+  openpyxl accepts the assignment and the workbook then cannot be saved, with the failure
+  surfacing from the stylesheet writer with no mention of the cell that caused it.
+  `set_column_best_fit` still measures these cells as the value is stored rather than as they
+  display.
+
 ### Fixed
 
 - `set_fill` no longer raises `TypeError` on a cell whose existing fill uses a theme,

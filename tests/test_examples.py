@@ -58,6 +58,7 @@ def test_the_documented_methods_are_the_ones_expected():
         "set_border",
         "set_fill",
         "set_font",
+        "set_number_format",
         "set_outside_border",
         "WorksheetToolkit",
     ]
