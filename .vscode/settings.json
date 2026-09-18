@@ -11,6 +11,10 @@
     }
   },
 
+  // Pylance reads the same annotations mypy does, so a wrong alignment name
+  // or a missing width is underlined while typing rather than in CI.
+  "python.analysis.typeCheckingMode": "standard",
+
   // Run the suite from the Testing sidebar instead of the terminal.
   "python.testing.pytestEnabled": true,
   "python.testing.pytestArgs": ["tests"],

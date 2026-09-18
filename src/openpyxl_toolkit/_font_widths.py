@@ -6,7 +6,7 @@ Each table is keyed by width so that characters sharing one stay visible
 rather than being repeated two hundred times.
 """
 
-WIDTH_GROUPS = {
+WIDTH_GROUPS: dict[str, dict[float, str]] = {
     # Carlito, metrically identical to Calibri (OFL)
     "calibri": {
         0.894: "@",
@@ -646,7 +646,7 @@ WIDTH_GROUPS = {
     },
 }
 
-ALIASES = {
+ALIASES: dict[str, str] = {
     "arimo": "arial",
     "caladea": "cambria",
     "carlito": "calibri",
@@ -658,7 +658,7 @@ ALIASES = {
     "tinos": "times new roman",
 }
 
-FONT_WIDTHS = {
+FONT_WIDTHS: dict[str, dict[str, float]] = {
     name: {character: width for width, characters in groups.items() for character in characters}
     for name, groups in WIDTH_GROUPS.items()
 }

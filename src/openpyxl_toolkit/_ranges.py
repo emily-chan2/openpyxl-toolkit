@@ -6,14 +6,22 @@ happen before any cell is created: openpyxl will happily materialise a cell
 outside Excel's grid, and the workbook can then never be saved.
 """
 
-from numbers import Number
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING
 
 from openpyxl.utils.cell import range_boundaries
 
 from ._limits import MAX_COLUMN, MAX_ROW
 
+if TYPE_CHECKING:
+    from openpyxl.worksheet.worksheet import Worksheet
 
-def check_indexes(indexes, limit, label):
+    from ._types import AnyCell, IndexSelection
+
+
+def check_indexes(indexes: Iterable[int], limit: int, label: str) -> None:
     """Reject indexes openpyxl would accept but Excel cannot store."""
     for index in indexes:
         # bool is an int, and a float index writes a cell reference like "A1.5"
@@ -26,12 +34,12 @@ def check_indexes(indexes, limit, label):
             )
 
 
-def check_bounds(rows=(), columns=()):
+def check_bounds(rows: Iterable[int] = (), columns: Iterable[int] = ()) -> None:
     check_indexes(rows, MAX_ROW, "row")
     check_indexes(columns, MAX_COLUMN, "column")
 
 
-def resolve_cells(worksheet, cells):
+def resolve_cells(worksheet: Worksheet, cells: str | None) -> tuple[list[int], list[int]]:
     """Turn a range string into the rows and columns it covers.
 
     Accepts the three spellings Excel uses:
@@ -60,7 +68,14 @@ def resolve_cells(worksheet, cells):
     return rows, columns
 
 
-def resolve_range_arguments(name, cells, start_row, start_column, end_row, end_column):
+def resolve_range_arguments(
+    name: str,
+    cells: str | None,
+    start_row: int | None,
+    start_column: int | None,
+    end_row: int | None,
+    end_column: int | None,
+) -> str | tuple[int, int, int, int]:
     """Settle which of the two ways of naming a range the caller used.
 
     Returns the range string, or the four coordinates as
@@ -96,7 +111,13 @@ def resolve_range_arguments(name, cells, start_row, start_column, end_row, end_c
     return start_row, start_column, end_row, end_column
 
 
-def iter_cells(worksheet, rows=None, columns=None, intersections_only=True, cells=None):
+def iter_cells(
+    worksheet: Worksheet,
+    rows: IndexSelection = None,
+    columns: IndexSelection = None,
+    intersections_only: bool = True,
+    cells: str | None = None,
+) -> Iterator[AnyCell]:
     if cells is not None:
         if rows is not None or columns is not None:
             raise ValueError(
@@ -112,9 +133,9 @@ def iter_cells(worksheet, rows=None, columns=None, intersections_only=True, cell
         rows = []
     if columns is None:
         columns = []
-    if isinstance(rows, Number):
+    if not isinstance(rows, Iterable):
         rows = [rows]
-    if isinstance(columns, Number):
+    if not isinstance(columns, Iterable):
         columns = [columns]
     if not rows:
         intersections_only = True

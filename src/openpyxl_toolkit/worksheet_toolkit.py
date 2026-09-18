@@ -5,10 +5,13 @@ chained. Picking cells, reading colours and measuring text are handled by the
 private modules alongside this one.
 """
 
-from copy import copy
-from numbers import Number
+from __future__ import annotations
 
-from openpyxl.styles import Border, PatternFill, Side
+from collections.abc import Iterable
+from copy import copy
+from typing import cast, get_args
+
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.views import Selection
@@ -17,12 +20,24 @@ from openpyxl.worksheet.worksheet import Worksheet
 from ._colors import has_color, normalize_color
 from ._limits import MAX_COLUMN_WIDTH, MAX_ROW_HEIGHT
 from ._ranges import check_bounds, iter_cells, resolve_cells, resolve_range_arguments
-from ._sentinel import UNCHANGED
+from ._sentinel import UNCHANGED, Unchanged
 from ._text import displayed_text, measure_text, workbook_normal_font
+from ._types import (
+    BorderSide,
+    BorderStyle,
+    FillType,
+    HorizontalAlignment,
+    IndexSelection,
+    MeasureText,
+    ReadingOrder,
+    Underline,
+    VerticalAlignment,
+)
 
 __all__ = ["WorksheetToolkit"]
 
-_BORDER_SIDES = ("top", "bottom", "left", "right", "diagonal_up", "diagonal_down")
+# One list, so the runtime check and the type a caller sees cannot drift apart.
+_BORDER_SIDES: tuple[BorderSide, ...] = get_args(BorderSide)
 
 
 class WorksheetToolkit:
@@ -34,7 +49,7 @@ class WorksheetToolkit:
     Most methods return self to allow method chaining.
     """
 
-    def __init__(self, worksheet):
+    def __init__(self, worksheet: Worksheet) -> None:
         """Initialize a WorksheetToolkit instance for a single worksheet.
 
         Parameters
@@ -55,7 +70,7 @@ class WorksheetToolkit:
             )
         self.worksheet = worksheet
 
-    def freeze_panes(self, cell=None):
+    def freeze_panes(self, cell: str | None = None) -> WorksheetToolkit:
         """Freeze panes so that rows above and columns to the left of the given cell remain visible.
         Pass None or an empty string to unfreeze panes.
 
@@ -86,12 +101,12 @@ class WorksheetToolkit:
     def merge_cells(
         self,
         *,
-        cells=None,
-        start_row=None,
-        start_column=None,
-        end_row=None,
-        end_column=None,
-    ):
+        cells: str | None = None,
+        start_row: int | None = None,
+        start_column: int | None = None,
+        end_row: int | None = None,
+        end_column: int | None = None,
+    ) -> WorksheetToolkit:
         """Merge a rectangular range of cells.
 
         Give either ``cells`` or all four coordinates.
@@ -121,12 +136,12 @@ class WorksheetToolkit:
     def unmerge_cells(
         self,
         *,
-        cells=None,
-        start_row=None,
-        start_column=None,
-        end_row=None,
-        end_column=None,
-    ):
+        cells: str | None = None,
+        start_row: int | None = None,
+        start_column: int | None = None,
+        end_row: int | None = None,
+        end_column: int | None = None,
+    ) -> WorksheetToolkit:
         """Undo a merge, taking the same arguments as :meth:`merge_cells`.
 
         Give ``cells`` a range such as 'A1:C3', or all four coordinates.
@@ -162,18 +177,18 @@ class WorksheetToolkit:
     def set_alignment(
         self,
         *,
-        cells=None,
-        rows=None,
-        columns=None,
-        intersections_only=True,
-        horizontal=UNCHANGED,
-        vertical=UNCHANGED,
-        text_rotation=UNCHANGED,
-        wrap_text=UNCHANGED,
-        shrink_to_fit=UNCHANGED,
-        indent=UNCHANGED,
-        reading_order=UNCHANGED,
-    ):
+        cells: str | None = None,
+        rows: IndexSelection = None,
+        columns: IndexSelection = None,
+        intersections_only: bool = True,
+        horizontal: HorizontalAlignment | None | Unchanged = UNCHANGED,
+        vertical: VerticalAlignment | None | Unchanged = UNCHANGED,
+        text_rotation: int | None | Unchanged = UNCHANGED,
+        wrap_text: bool | None | Unchanged = UNCHANGED,
+        shrink_to_fit: bool | None | Unchanged = UNCHANGED,
+        indent: float | Unchanged = UNCHANGED,
+        reading_order: ReadingOrder | Unchanged = UNCHANGED,
+    ) -> WorksheetToolkit:
         """Set the alignment of cells defined by rows and columns. If rows and columns are empty or
         None, applies to all cells.
 
@@ -227,7 +242,7 @@ class WorksheetToolkit:
         for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             # Copy and override for the same reason as set_font: rebuilding from
             # the arguments drops justifyLastLine and relativeIndent.
-            new_alignment = copy(cell.alignment)
+            new_alignment = cast(Alignment, copy(cell.alignment))
             for attribute, value in parameters.items():
                 if value is not UNCHANGED:
                     setattr(new_alignment, attribute, value)
@@ -240,14 +255,19 @@ class WorksheetToolkit:
     def set_border(
         self,
         *,
-        cells=None,
-        rows=None,
-        columns=None,
-        intersections_only=True,
-        sides=("top", "bottom", "left", "right"),
-        style=UNCHANGED,
-        color=UNCHANGED,
-    ):
+        cells: str | None = None,
+        rows: IndexSelection = None,
+        columns: IndexSelection = None,
+        intersections_only: bool = True,
+        sides: BorderSide | Iterable[BorderSide] = (
+            "top",
+            "bottom",
+            "left",
+            "right",
+        ),
+        style: BorderStyle | None | Unchanged = UNCHANGED,
+        color: str | None | Unchanged = UNCHANGED,
+    ) -> WorksheetToolkit:
         """Set borders for specified cells.
 
         Parameters
@@ -285,7 +305,7 @@ class WorksheetToolkit:
         updates = []
         for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             current = cell.border
-            straight = {}
+            straight: dict[str, Side] = {}
 
             # Standard sides
             for side_name in ("left", "right", "top", "bottom"):
@@ -353,14 +373,14 @@ class WorksheetToolkit:
     def set_outside_border(
         self,
         *,
-        style,
-        cells=None,
-        start_row=None,
-        end_row=None,
-        start_column=None,
-        end_column=None,
-        color=UNCHANGED,
-    ):
+        style: BorderStyle | None,
+        cells: str | None = None,
+        start_row: int | None = None,
+        end_row: int | None = None,
+        start_column: int | None = None,
+        end_column: int | None = None,
+        color: str | None | Unchanged = UNCHANGED,
+    ) -> WorksheetToolkit:
         """Set a border only on the outside edges of a rectangular block of cells.
 
         Parameters
@@ -440,14 +460,14 @@ class WorksheetToolkit:
     def set_column_best_fit(
         self,
         *,
-        columns=None,
-        padding=0,
-        ignore_rows=None,
-        ignore_formulas=True,
-        min_width=None,
-        max_width=None,
-        measure=None,
-    ):
+        columns: IndexSelection = None,
+        padding: float = 0,
+        ignore_rows: Iterable[int] | None = None,
+        ignore_formulas: bool = True,
+        min_width: float | None = None,
+        max_width: float | None = None,
+        measure: MeasureText | None = None,
+    ) -> WorksheetToolkit:
         """Fit columns to their widest cell.
 
         Widths come from the real per-character advances of Calibri, so a column of
@@ -493,7 +513,7 @@ class WorksheetToolkit:
         ws = self.worksheet
         if columns is None:
             columns = range(1, ws.max_column + 1)
-        if isinstance(columns, Number):
+        if not isinstance(columns, Iterable):
             columns = [columns]
         columns = list(columns)
         # Before any ws.cell() call: materialising an out-of-grid cell makes the
@@ -504,7 +524,7 @@ class WorksheetToolkit:
 
         measure = measure or measure_text
         for col in columns:
-            excel_width = 0
+            excel_width = 0.0
             measured_anything = False
             for row in range(1, ws.max_row + 1):
                 if row in ignore_rows:
@@ -541,7 +561,7 @@ class WorksheetToolkit:
 
         return self
 
-    def set_column_width(self, *, width, columns=None):
+    def set_column_width(self, *, width: float, columns: IndexSelection = None) -> WorksheetToolkit:
         """
         Set the width of one or more columns.
 
@@ -557,10 +577,10 @@ class WorksheetToolkit:
         if width < 0:
             raise ValueError(f"width must not be negative, got {width}")
 
-        if isinstance(columns, Number):
-            columns = [columns]
         if columns is None:
-            columns = list(range(1, self.worksheet.max_column + 1))
+            columns = range(1, self.worksheet.max_column + 1)
+        elif not isinstance(columns, Iterable):
+            columns = [columns]
 
         columns = list(columns)
         check_bounds(columns=columns)
@@ -577,7 +597,7 @@ class WorksheetToolkit:
                 dimension.width = width
         return self
 
-    def set_row_height(self, *, height, rows=None):
+    def set_row_height(self, *, height: float, rows: IndexSelection = None) -> WorksheetToolkit:
         """
         Set the height of one or more rows.
 
@@ -592,10 +612,10 @@ class WorksheetToolkit:
         if height < 0:
             raise ValueError(f"height must not be negative, got {height}")
 
-        if isinstance(rows, Number):
-            rows = [rows]
         if rows is None:
-            rows = list(range(1, self.worksheet.max_row + 1))
+            rows = range(1, self.worksheet.max_row + 1)
+        elif not isinstance(rows, Iterable):
+            rows = [rows]
 
         rows = list(rows)
         check_bounds(rows=rows)
@@ -611,14 +631,14 @@ class WorksheetToolkit:
     def set_fill(
         self,
         *,
-        cells=None,
-        rows=None,
-        columns=None,
-        intersections_only=True,
-        fill_type=UNCHANGED,
-        start_color=UNCHANGED,
-        end_color=UNCHANGED,
-    ):
+        cells: str | None = None,
+        rows: IndexSelection = None,
+        columns: IndexSelection = None,
+        intersections_only: bool = True,
+        fill_type: FillType | None | Unchanged = UNCHANGED,
+        start_color: str | Unchanged = UNCHANGED,
+        end_color: str | Unchanged = UNCHANGED,
+    ) -> WorksheetToolkit:
         """Set the fill of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
 
@@ -723,18 +743,18 @@ class WorksheetToolkit:
     def set_font(
         self,
         *,
-        cells=None,
-        rows=None,
-        columns=None,
-        intersections_only=True,
-        name=UNCHANGED,
-        size=UNCHANGED,
-        bold=UNCHANGED,
-        italic=UNCHANGED,
-        underline=UNCHANGED,
-        strike=UNCHANGED,
-        color=UNCHANGED,
-    ):
+        cells: str | None = None,
+        rows: IndexSelection = None,
+        columns: IndexSelection = None,
+        intersections_only: bool = True,
+        name: str | Unchanged = UNCHANGED,
+        size: float | Unchanged = UNCHANGED,
+        bold: bool | None | Unchanged = UNCHANGED,
+        italic: bool | None | Unchanged = UNCHANGED,
+        underline: Underline | None | Unchanged = UNCHANGED,
+        strike: bool | None | Unchanged = UNCHANGED,
+        color: str | None | Unchanged = UNCHANGED,
+    ) -> WorksheetToolkit:
         """Set the font of cells defined by rows and columns. If rows and columns are empty or None,
         applies to all cells.
 
@@ -785,7 +805,7 @@ class WorksheetToolkit:
             # Copy and override, rather than build a new Font from the arguments:
             # a fresh Font would silently reset every attribute this method does
             # not expose, such as vertAlign and scheme.
-            new_font = copy(cell.font)
+            new_font = cast(Font, copy(cell.font))
             for attribute, value in parameters.items():
                 if value is not UNCHANGED:
                     setattr(new_font, attribute, value)
@@ -795,7 +815,7 @@ class WorksheetToolkit:
             cell.font = font
         return self
 
-    def set_zoom_scale(self, *, zoom_scale=100):
+    def set_zoom_scale(self, *, zoom_scale: int = 100) -> WorksheetToolkit:
         """Set the zoom scale.
 
         Parameters
