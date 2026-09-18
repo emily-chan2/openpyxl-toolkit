@@ -1019,6 +1019,88 @@ class WorksheetToolkit:
             cell.font = font
         return self
 
+    def set_number_format(
+        self,
+        *,
+        number_format: str,
+        cells: str | None = None,
+        rows: IndexSelection = None,
+        columns: IndexSelection = None,
+        intersections_only: bool = True,
+    ) -> WorksheetToolkit:
+        """Set how the value in each cell is displayed.
+
+        The code is Excel's own: '0.00' for two decimal places, '"$"#,##0.00' for
+        currency, '0.00%' for a percentage, 'yyyy-mm-dd' for a date. 'General' is
+        the default, and ';;;' shows nothing at all while leaving the value in
+        place.
+
+        Parameters
+        ----------
+        number_format : str
+            The format code. Required: there is no existing value to leave alone,
+            so omitting it cannot mean anything.
+        cells : str, optional
+            The cells to format, as a range: a block such as 'A1:C3', whole columns
+            such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
+            this or ``rows`` and ``columns``, not both.
+        rows : list of int, optional
+            Row numbers. Defaults to every row in use.
+        columns : list of int, optional
+            Column numbers. Defaults to every column in use.
+        intersections_only : bool, optional
+            True, the default, formats the cells where the given rows and the given
+            columns cross. False formats every cell in those rows and every cell in
+            those columns, which is a cross rather than a block. Only considered when
+            both ``rows`` and ``columns`` are given.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``number_format`` is not a string, or if ``rows`` or ``columns`` is
+            given a single number rather than a list, or an index that is not an
+            integer.
+        ValueError
+            If both ``cells`` and ``rows`` or ``columns`` are given, if ``cells``
+            cannot be read as a range, or if an index falls outside Excel's grid.
+
+        Notes
+        -----
+        Column fitting does not read most of these. ``set_column_best_fit`` renders
+        dates and times as Excel displays them and measures everything else as the
+        value is stored, so a currency column can come out narrower than it needs
+        to be.
+
+        Examples
+        --------
+        Two decimal places down column B:
+
+        >>> toolkit.set_number_format(number_format='0.00', cells="B:B")
+
+        Currency, where rows 2 and 3 meet column 3:
+
+        >>> toolkit.set_number_format(
+        ...     number_format='"$"#,##0.00', rows=[2, 3], columns=[3]
+        ... )
+        """
+        if not isinstance(number_format, str):
+            # openpyxl takes the assignment and the workbook then cannot be saved:
+            # the stylesheet writer raises on a format code that is not a string.
+            raise TypeError(
+                f"number_format must be a string, got {number_format!r}. "
+                f"Pass 'General' for Excel's default."
+            )
+
+        # No two-phase build here, unlike the style setters: there is no object to
+        # construct, and assigning a string cannot fail part-way through a range.
+        for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
+            cell.number_format = number_format
+        return self
+
     def set_zoom_scale(self, *, zoom_scale: int = 100) -> WorksheetToolkit:
         """Set how far the sheet is zoomed in when it is opened.
 

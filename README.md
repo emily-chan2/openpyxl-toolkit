@@ -88,6 +88,7 @@ Each returns the toolkit, so calls chain.
 | `set_font` | name, size, bold, italic, underline, strike, color |
 | `set_fill` | fill_type, start_color, end_color |
 | `set_alignment` | horizontal, vertical, text_rotation, wrap_text, shrink_to_fit, indent, reading_order |
+| `set_number_format` | how a value is displayed: currency, percent, dates, decimal places |
 | `set_border` | style and color, on any of six sides |
 | `set_outside_border` | one border around the edge of a block, leaving the inside alone |
 | `set_column_width` / `set_row_height` | an explicit size; 0 hides the column or row |
@@ -123,9 +124,10 @@ Calibri's character widths unless `measure` is given.
 Three things worth knowing:
 
 - Text is assumed to be on one line. Wrapped text is not accounted for.
-- Only dates and times are rendered as Excel displays them. Other number formats
-  are measured as the value is stored, so a currency column can come out narrower
-  than it needs to be. `min_width` is the answer.
+- Only dates and times are rendered as Excel displays them. Other number formats,
+  including the ones `set_number_format` writes, are measured as the value is
+  stored, so a currency column can come out narrower than it needs to be.
+  `min_width` is the answer.
 - Formula cells are skipped by default, since the formula text is not what the
   reader sees. Set that column's width directly, or pass `ignore_formulas=False`.
 
