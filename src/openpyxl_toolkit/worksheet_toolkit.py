@@ -19,7 +19,13 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from ._colors import has_color, normalize_color
 from ._limits import MAX_COLUMN_WIDTH, MAX_ROW_HEIGHT
-from ._ranges import check_bounds, iter_cells, resolve_cells, resolve_range_arguments
+from ._ranges import (
+    as_indexes,
+    check_bounds,
+    iter_cells,
+    resolve_cells,
+    resolve_range_arguments,
+)
 from ._sentinel import UNCHANGED, Unchanged
 from ._text import displayed_text, measure_text, workbook_normal_font
 from ._types import (
@@ -194,8 +200,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        rows : Union[List[int], int], optional
-        columns : Union[List[int], int], optional
+        rows : List[int], optional
+        columns : List[int], optional
         intersections_only : bool
             If True, then alignment is applied to only the cells that have a row number in the rows
             argument and a column number in the columns argument.
@@ -272,8 +278,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        rows : int or list of int, optional
-        columns : int or list of int, optional
+        rows : List[int], optional
+        columns : List[int], optional
         intersections_only : bool, optional
         sides : str or tuple of str, optional
             Sides to modify. Can include:
@@ -480,12 +486,12 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        columns : int or list of int, optional
+        columns : List[int], optional
             Column numbers to fit. Defaults to every column in use.
         padding : float, optional
             Extra width on top of the fitted value. Defaults to 0; Excel's own
             5 pixels of cell padding are already part of the formula.
-        ignore_rows : list of int, optional
+        ignore_rows : List[int], optional
             Row numbers to leave out when measuring.
         ignore_formulas : bool, optional
             If True, cells holding formulas are not measured. The formula text is
@@ -512,10 +518,9 @@ class WorksheetToolkit:
         """
         ws = self.worksheet
         if columns is None:
-            columns = range(1, ws.max_column + 1)
-        if not isinstance(columns, Iterable):
-            columns = [columns]
-        columns = list(columns)
+            columns = list(range(1, ws.max_column + 1))
+        else:
+            columns = as_indexes(columns, "columns")
         # Before any ws.cell() call: materialising an out-of-grid cell makes the
         # workbook permanently unsaveable, so a later failure would come too late.
         check_bounds(columns=columns)
@@ -567,8 +572,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        columns : int or list of int
-            Column number(s) to modify.
+        columns : List[int]
+            Column numbers to modify.
         width : float
             Column width in Excel character units, not pixels. Required: there is no
             existing value to leave alone, so omitting it cannot mean anything.
@@ -578,11 +583,9 @@ class WorksheetToolkit:
             raise ValueError(f"width must not be negative, got {width}")
 
         if columns is None:
-            columns = range(1, self.worksheet.max_column + 1)
-        elif not isinstance(columns, Iterable):
-            columns = [columns]
-
-        columns = list(columns)
+            columns = list(range(1, self.worksheet.max_column + 1))
+        else:
+            columns = as_indexes(columns, "columns")
         check_bounds(columns=columns)
         width = min(width, MAX_COLUMN_WIDTH)
         for col in columns:
@@ -603,8 +606,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        rows : int or list of int
-            Row number(s) to modify.
+        rows : List[int]
+            Row numbers to modify.
         height : float
             Row height in points. Required, for the same reason as the column width.
             A height of 0 hides the row.
@@ -613,11 +616,9 @@ class WorksheetToolkit:
             raise ValueError(f"height must not be negative, got {height}")
 
         if rows is None:
-            rows = range(1, self.worksheet.max_row + 1)
-        elif not isinstance(rows, Iterable):
-            rows = [rows]
-
-        rows = list(rows)
+            rows = list(range(1, self.worksheet.max_row + 1))
+        else:
+            rows = as_indexes(rows, "rows")
         check_bounds(rows=rows)
         height = min(height, MAX_ROW_HEIGHT)
         for row in rows:
@@ -644,8 +645,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        rows : Union[List[int], int], optional
-        columns : Union[List[int], int], optional
+        rows : List[int], optional
+        columns : List[int], optional
         intersections_only : bool, optional
             If True, then fill is applied to only the cells that have a row number in the rows
             argument and a column number in the columns argument.
@@ -760,8 +761,8 @@ class WorksheetToolkit:
 
         Parameters
         ----------
-        rows : Union[List[int], int], optional
-        columns : Union[List[int], int], optional
+        rows : List[int], optional
+        columns : List[int], optional
         intersections_only : bool
             If True, then font is applied to only the cells that have a row number in the rows
             argument and a column number in the columns argument.

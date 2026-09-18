@@ -11,7 +11,7 @@ from openpyxl_toolkit import WorksheetToolkit
 
 
 def test_thin_border_survives_on_the_named_sides(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top", "bottom"), style="thin")
+    WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top", "bottom"), style="thin")
 
     border = roundtrip(sheet).cell(row=1, column=1).border
 
@@ -19,7 +19,7 @@ def test_thin_border_survives_on_the_named_sides(sheet, roundtrip):
 
 
 def test_sides_that_were_not_named_stay_without_a_border(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top", "bottom"), style="thin")
+    WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top", "bottom"), style="thin")
 
     border = roundtrip(sheet).cell(row=1, column=1).border
 
@@ -29,8 +29,8 @@ def test_sides_that_were_not_named_stay_without_a_border(sheet, roundtrip):
 def test_a_later_call_on_another_side_preserves_the_earlier_side(sheet, roundtrip):
     """The merge guarantee: a second call adds a side, it does not start over."""
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin")
-    toolkit.set_border(rows=1, columns=1, sides=("left",), style="thick")
+    toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("left",), style="thick")
 
     border = roundtrip(sheet).cell(row=1, column=1).border
 
@@ -40,8 +40,8 @@ def test_a_later_call_on_another_side_preserves_the_earlier_side(sheet, roundtri
 def test_recolouring_a_side_leaves_its_style_intact(sheet, roundtrip):
     """Passing only ``color`` must not drop the style set by an earlier call."""
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_border(rows=1, columns=1, sides=("top",), style="medium")
-    toolkit.set_border(rows=1, columns=1, sides=("top",), color="#0000ff")
+    toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="medium")
+    toolkit.set_border(rows=[1], columns=[1], sides=("top",), color="#0000ff")
 
     border = roundtrip(sheet).cell(row=1, column=1).border
 
@@ -50,8 +50,8 @@ def test_recolouring_a_side_leaves_its_style_intact(sheet, roundtrip):
 
 def test_applying_a_border_leaves_an_existing_font_alone(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_font(rows=1, columns=1, bold=True)
-    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin")
+    toolkit.set_font(rows=[1], columns=[1], bold=True)
+    toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="thin")
 
     assert roundtrip(sheet).cell(row=1, column=1).font.bold is True
 
@@ -103,8 +103,8 @@ def test_outside_border_leaves_the_inward_sides_of_an_edge_cell_clear(sheet, rou
 def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip):
     """The same hex handed to two methods must round trip to one ARGB string."""
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_border(rows=1, columns=1, sides=("top",), style="thin", color="#ff0000")
-    toolkit.set_font(rows=1, columns=2, color="#ff0000")
+    toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="thin", color="#ff0000")
+    toolkit.set_font(rows=[1], columns=[2], color="#ff0000")
 
     reloaded = roundtrip(sheet)
 
@@ -117,13 +117,13 @@ def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip
 def test_a_colour_with_no_style_is_rejected(sheet):
     """A side with no style draws nothing, so a colour alone cannot show."""
     with pytest.raises(ValueError, match="style='thin'"):
-        WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), color="#ff0000")
+        WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), color="#ff0000")
 
 
 def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roundtrip):
     sheet.cell(row=1, column=1, value="x").border = Border(top=Side(style="thin"))
 
-    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), color="#ff0000")
+    WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), color="#ff0000")
 
     top = roundtrip(sheet).cell(row=1, column=1).border.top
     assert top.style == "thin" and top.color.rgb.lower().endswith("ff0000")
@@ -131,7 +131,7 @@ def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roun
 
 def test_a_style_with_no_colour_is_allowed(sheet, roundtrip):
     """Excel draws an uncoloured border in the automatic colour, which is what we want."""
-    WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("top",), style="thin")
+    WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), style="thin")
 
     assert roundtrip(sheet).cell(row=1, column=1).border.top.style == "thin"
 
@@ -142,15 +142,15 @@ def test_a_rejected_border_leaves_the_whole_range_untouched(sheet, roundtrip):
     sheet["A1"].border = Border(top=Side(style="thin"))
 
     with pytest.raises(ValueError):
-        WorksheetToolkit(sheet).set_border(rows=1, sides=("top",), color="#ff0000")
+        WorksheetToolkit(sheet).set_border(rows=[1], sides=("top",), color="#ff0000")
 
     assert roundtrip(sheet)["A1"].border.top.color is None
 
 
 def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_border(rows=1, columns=1, sides=("diagonal_up",), style="thin")
-    toolkit.set_border(rows=1, columns=1, sides=("diagonal_down",), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_down",), style="thin")
 
     border = roundtrip(sheet).cell(row=1, column=1).border
 
@@ -159,7 +159,7 @@ def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
 
 def test_an_unknown_side_name_is_rejected(sheet):
     with pytest.raises(ValueError):
-        WorksheetToolkit(sheet).set_border(rows=1, columns=1, sides=("lft",), style="thin")
+        WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("lft",), style="thin")
 
 
 def test_outside_border_without_a_style_is_rejected(sheet):

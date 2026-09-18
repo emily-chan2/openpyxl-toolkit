@@ -28,18 +28,18 @@ def test_row_height_survives_the_round_trip(sheet, roundtrip):
     assert roundtrip(sheet).row_dimensions[1].height == 44.5
 
 
-def test_a_single_column_number_is_treated_as_a_one_column_list(sheet, roundtrip):
+def test_one_column_is_still_written_as_a_list(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_width(columns=1, width=21)
+    toolkit.set_column_width(columns=[1], width=21)
     toolkit.set_column_width(columns=[2], width=21)
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["A"].width == ws.column_dimensions["B"].width
 
 
-def test_a_single_row_number_is_treated_as_a_one_row_list(sheet, roundtrip):
+def test_one_row_is_still_written_as_a_list(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_row_height(rows=1, height=33)
+    toolkit.set_row_height(rows=[1], height=33)
     toolkit.set_row_height(rows=[2], height=33)
 
     ws = roundtrip(sheet)
@@ -118,8 +118,8 @@ def test_best_fit_adds_padding_on_top_of_the_measured_width(sheet, roundtrip):
     sheet["B1"] = "abcde"
 
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_best_fit(columns=1, padding=0)
-    toolkit.set_column_best_fit(columns=2, padding=10)
+    toolkit.set_column_best_fit(columns=[1], padding=0)
+    toolkit.set_column_best_fit(columns=[2], padding=10)
 
     ws = roundtrip(sheet)
     difference = ws.column_dimensions["B"].width - ws.column_dimensions["A"].width
@@ -129,8 +129,8 @@ def test_best_fit_adds_padding_on_top_of_the_measured_width(sheet, roundtrip):
 def test_setting_a_row_height_leaves_an_earlier_column_width_intact(sheet, roundtrip):
     """The library's core promise: a later call adds to the layout, it does not replace it."""
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_width(columns=1, width=25)
-    toolkit.set_row_height(rows=1, height=40)
+    toolkit.set_column_width(columns=[1], width=25)
+    toolkit.set_row_height(rows=[1], height=40)
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["A"].width == 25
@@ -138,8 +138,8 @@ def test_setting_a_row_height_leaves_an_earlier_column_width_intact(sheet, round
 
 def test_setting_one_column_width_leaves_another_column_width_intact(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_width(columns=1, width=25)
-    toolkit.set_column_width(columns=2, width=9)
+    toolkit.set_column_width(columns=[1], width=25)
+    toolkit.set_column_width(columns=[2], width=9)
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["A"].width == 25
@@ -150,8 +150,8 @@ def test_best_fit_leaves_an_explicit_width_on_an_untouched_column_intact(sheet, 
     sheet["B1"] = "a much longer value"
 
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_width(columns=1, width=42)
-    toolkit.set_column_best_fit(columns=2)
+    toolkit.set_column_width(columns=[1], width=42)
+    toolkit.set_column_best_fit(columns=[2])
 
     ws = roundtrip(sheet)
     assert ws.column_dimensions["A"].width == 42
@@ -160,9 +160,9 @@ def test_best_fit_leaves_an_explicit_width_on_an_untouched_column_intact(sheet, 
 def test_dimension_setters_return_the_toolkit_for_chaining(sheet):
     toolkit = WorksheetToolkit(sheet)
 
-    assert toolkit.set_column_width(columns=1, width=10) is toolkit
-    assert toolkit.set_row_height(rows=1, height=10) is toolkit
-    assert toolkit.set_column_best_fit(columns=1) is toolkit
+    assert toolkit.set_column_width(columns=[1], width=10) is toolkit
+    assert toolkit.set_row_height(rows=[1], height=10) is toolkit
+    assert toolkit.set_column_best_fit(columns=[1]) is toolkit
 
 
 # --------------------------------------------------------------------------
@@ -211,7 +211,7 @@ def test_best_fit_leaves_a_deliberate_width_on_an_empty_column_alone(sheet, roun
     sheet["A1"] = "data"
 
     toolkit = WorksheetToolkit(sheet)
-    toolkit.set_column_width(columns=3, width=30)
+    toolkit.set_column_width(columns=[3], width=30)
     toolkit.set_column_best_fit(columns=[1, 3])
 
     ws = roundtrip(sheet)
@@ -232,20 +232,20 @@ def test_best_fit_sizes_a_date_from_its_displayed_form(sheet, roundtrip):
 
 
 def test_column_width_is_clamped_to_the_excel_maximum(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_column_width(columns=1, width=300)
+    WorksheetToolkit(sheet).set_column_width(columns=[1], width=300)
 
     assert roundtrip(sheet).column_dimensions["A"].width == EXCEL_MAX_COLUMN_WIDTH
 
 
 def test_zero_column_width_collapses_the_column_in_the_saved_file(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_column_width(columns=1, width=0)
+    WorksheetToolkit(sheet).set_column_width(columns=[1], width=0)
 
     dimension = roundtrip(sheet).column_dimensions["A"]
     assert dimension.width == 0 or dimension.hidden
 
 
 def test_zero_row_height_collapses_the_row_in_the_saved_file(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_row_height(rows=1, height=0)
+    WorksheetToolkit(sheet).set_row_height(rows=[1], height=0)
 
     dimension = roundtrip(sheet).row_dimensions[1]
     assert dimension.height == 0 or dimension.hidden
@@ -253,27 +253,27 @@ def test_zero_row_height_collapses_the_row_in_the_saved_file(sheet, roundtrip):
 
 def test_negative_column_width_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
-        WorksheetToolkit(sheet).set_column_width(columns=1, width=-5)
+        WorksheetToolkit(sheet).set_column_width(columns=[1], width=-5)
 
 
 def test_negative_row_height_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
-        WorksheetToolkit(sheet).set_row_height(rows=1, height=-5)
+        WorksheetToolkit(sheet).set_row_height(rows=[1], height=-5)
 
 
 def test_row_zero_is_rejected(sheet):
     with pytest.raises((ValueError, TypeError)):
-        WorksheetToolkit(sheet).set_row_height(rows=0, height=20)
+        WorksheetToolkit(sheet).set_row_height(rows=[0], height=20)
 
 
 def test_column_width_without_a_width_is_rejected(sheet):
     with pytest.raises((TypeError, ValueError)):
-        WorksheetToolkit(sheet).set_column_width(columns=1)
+        WorksheetToolkit(sheet).set_column_width(columns=[1])
 
 
 def test_row_height_without_a_height_is_rejected(sheet):
     with pytest.raises((TypeError, ValueError)):
-        WorksheetToolkit(sheet).set_row_height(rows=1)
+        WorksheetToolkit(sheet).set_row_height(rows=[1])
 
 
 def test_best_fit_measures_an_unstyled_cell_at_the_workbook_default_size(sheet, roundtrip):
@@ -332,7 +332,7 @@ def test_best_fit_measures_a_general_formatted_value_as_stored(sheet, roundtrip)
 
 
 def test_row_height_is_clamped_to_the_excel_maximum(sheet, roundtrip):
-    WorksheetToolkit(sheet).set_row_height(rows=1, height=500)
+    WorksheetToolkit(sheet).set_row_height(rows=[1], height=500)
 
     assert roundtrip(sheet).row_dimensions[1].height == 409
 
@@ -375,7 +375,7 @@ def test_best_fit_accepts_a_custom_measure(sheet, roundtrip):
     sheet["A1"] = "hello"
 
     WorksheetToolkit(sheet).set_column_best_fit(
-        columns=1, measure=lambda text, font, normal_font: len(text) * 2
+        columns=[1], measure=lambda text, font, normal_font: len(text) * 2
     )
 
     assert roundtrip(sheet).column_dimensions["A"].width == 10

@@ -21,6 +21,23 @@ if TYPE_CHECKING:
     from ._types import AnyCell, IndexSelection
 
 
+def as_indexes(value: Iterable[int], label: str) -> list[int]:
+    """Turn a ``rows=`` or ``columns=`` argument into a list of numbers.
+
+    A single number raises: these arguments take a list, and ``columns=3`` is
+    close enough to ``columns=[3]`` that quietly accepting both hides the typo
+    where a count was meant.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        raise TypeError(
+            f"{label} takes a list of numbers, not a single one. "
+            f"Write {label}=[{value!r}] rather than {label}={value!r}."
+        )
+    if isinstance(value, str) or not isinstance(value, Iterable):
+        raise TypeError(f"{label} takes a list of numbers, got {value!r}")
+    return list(value)
+
+
 def check_indexes(indexes: Iterable[int], limit: int, label: str) -> None:
     """Reject indexes openpyxl would accept but Excel cannot store."""
     for index in indexes:
@@ -129,14 +146,8 @@ def iter_cells(
         intersections_only = True
 
     # Normalize rows and columns
-    if rows is None:
-        rows = []
-    if columns is None:
-        columns = []
-    if not isinstance(rows, Iterable):
-        rows = [rows]
-    if not isinstance(columns, Iterable):
-        columns = [columns]
+    rows = [] if rows is None else as_indexes(rows, "rows")
+    columns = [] if columns is None else as_indexes(columns, "columns")
     if not rows:
         intersections_only = True
         rows = list(range(1, worksheet.max_row + 1))

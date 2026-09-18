@@ -71,7 +71,7 @@ def test_a_later_call_keeps_a_colour_set_by_an_earlier_one(sheet, roundtrip):
 
 
 def test_row_selection_reaches_every_column_of_that_row_only(grid, roundtrip):
-    WorksheetToolkit(grid).set_font(rows=2, bold=True)
+    WorksheetToolkit(grid).set_font(rows=[2], bold=True)
 
     assert bold_map(roundtrip(grid)) == [
         [False, False, False],
@@ -81,7 +81,7 @@ def test_row_selection_reaches_every_column_of_that_row_only(grid, roundtrip):
 
 
 def test_column_selection_reaches_every_row_of_that_column_only(grid, roundtrip):
-    WorksheetToolkit(grid).set_font(columns=3, bold=True)
+    WorksheetToolkit(grid).set_font(columns=[3], bold=True)
 
     assert bold_map(roundtrip(grid)) == [
         [False, False, True],
@@ -102,7 +102,7 @@ def test_intersection_selection_reaches_only_the_shared_cells(grid, roundtrip):
 
 def test_union_selection_reaches_the_whole_row_and_the_whole_column(grid, roundtrip):
     """With intersections_only=False the row and the column are both swept in full."""
-    WorksheetToolkit(grid).set_font(rows=1, columns=1, intersections_only=False, bold=True)
+    WorksheetToolkit(grid).set_font(rows=[1], columns=[1], intersections_only=False, bold=True)
 
     assert bold_map(roundtrip(grid)) == [
         [True, True, True],
