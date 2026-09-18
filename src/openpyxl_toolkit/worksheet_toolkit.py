@@ -76,6 +76,10 @@ class WorksheetToolkit:
             )
         self.worksheet = worksheet
 
+    def __repr__(self) -> str:
+        """Name of the sheet being worked on."""
+        return f"<{type(self).__name__} {self.worksheet.title!r}>"
+
     def freeze_panes(self, cell: str | None = None) -> WorksheetToolkit:
         """Freeze panes so that rows above and columns to the left of the given cell remain visible.
         Pass None or an empty string to unfreeze panes.
@@ -84,16 +88,6 @@ class WorksheetToolkit:
         ----------
         cell : str, optional
             The top-left cell to freeze panes at, e.g. 'B2'. If None, panes are unfrozen.
-
-        Warning
-        -------
-        Due to the way Excel stores pane information, some versions of Excel may display a repair
-        warning when opening a workbook, even if this method was used correctly.
-        This is an Excel-specific behavior and not a bug in the toolkit.
-
-        If you encounter such a warning, you can safely:
-        - Re-save the workbook in Excel
-        - Or create a new worksheet/workbook and reapply formatting using this toolkit
         """
         if cell is None or cell == "":
             # openpyxl clears the pane but leaves the three split selections behind,
@@ -214,25 +208,31 @@ class WorksheetToolkit:
         vertical : str, optional
             Vertical alignment: 'top', 'center', 'bottom', 'justify', 'distributed'.
         text_rotation : int, optional
-            Rotation of the text in degrees (0-180).
+            Degrees, 0 to 180. 255 is the separate case: letters stacked one above
+            the next, reading downwards. Nothing between 181 and 254 is accepted.
         wrap_text : bool, optional
         shrink_to_fit : bool, optional
         indent : int, optional
-            Number of spaces to indent text.
+            Indent levels, not spaces. Excel renders one level as roughly three
+            characters of the normal font. 0 to 255.
         reading_order : int, optional
             Text direction: 0 = Context (default), 1 = Left-to-right, 2 = Right-to-left.
 
         Examples
         --------
-        >>> # Center all text horizontally and vertically
+        Center every cell, both ways:
+
         >>> toolkit.set_alignment(horizontal='center', vertical='center')
-        >>>
-        >>> # Wrap text in rows 1-2 only
+
+        Wrap the text in rows 1 and 2 only:
+
         >>> toolkit.set_alignment(rows=[1, 2], wrap_text=True)
-        >>>
-        >>> # Rotate text 45 degrees for intersection of row 1-2 and columns 1-2
-        >>> toolkit.set_alignment(rows=[1, 2], columns=[1, 2], intersections_only=True,
-        >>>                       text_rotation=45)
+
+        Rotate the four cells where rows 1 and 2 meet columns 1 and 2:
+
+        >>> toolkit.set_alignment(
+        ...     rows=[1, 2], columns=[1, 2], intersections_only=True, text_rotation=45
+        ... )
         """
         parameters = {
             "horizontal": horizontal,
@@ -293,12 +293,18 @@ class WorksheetToolkit:
 
         Examples
         --------
-        >>> # Thin red top and bottom borders for rows 1-2
-        >>> toolkit.set_border(rows=[1,2], sides=('top','bottom'), style='thin', color='#ff0000')
-        >>>
-        >>> # Draw a diagonal line from bottom-left to top-right in cell B2
-        >>> toolkit.set_border(rows=2, columns=2, intersections_only=True, sides=('diagonal_up'),
-        >>>                    style='thin', color='#00ff00')
+        Thin red rules above and below rows 1 and 2:
+
+        >>> toolkit.set_border(
+        ...     rows=[1, 2], sides=('top', 'bottom'), style='thin', color='#ff0000'
+        ... )
+
+        A diagonal through B2, bottom-left to top-right. ``sides`` takes one name
+        or several, so a single side needs no comma:
+
+        >>> toolkit.set_border(
+        ...     rows=[2], columns=[2], sides='diagonal_up', style='thin', color='#00ff00'
+        ... )
         """
         if isinstance(sides, str):
             sides = (sides,)
@@ -406,11 +412,18 @@ class WorksheetToolkit:
         color : str, optional
             Hex color code, e.g., '#ff0000'.
 
-        Example
-        -------
-        >>> # Add a thin black border around rows 1-3 and columns 1-4
-        >>> toolkit.set_outside_border(start_row=1, end_row=3, start_column=1, end_column=4,
-                                       style='thin', color='#000000')
+        Examples
+        --------
+        A thin black box around rows 1 to 3 and columns 1 to 4:
+
+        >>> toolkit.set_outside_border(
+        ...     start_row=1, end_row=3, start_column=1, end_column=4,
+        ...     style='thin', color='#000000',
+        ... )
+
+        The same block, named as a range:
+
+        >>> toolkit.set_outside_border(cells="A1:D3", style='medium')
         """
         target = resolve_range_arguments(
             "set_outside_border", cells, start_row, start_column, end_row, end_column
@@ -667,11 +680,21 @@ class WorksheetToolkit:
 
         Examples
         --------
-        >>> # Fill row 1 with pink
-        >>> toolkit.set_fill(rows=1, start_color='#f4d2d3')
-        >>>
-        >>> # Fill intersection of row 1-2 and col 1-2 with yellow
-        >>> toolkit.set_fill(rows=[1,2], columns=[1,2], intersections_only=True, start_color='#ffff00')
+        A colour needs a pattern to show through, so a cell with no fill yet takes
+        both:
+
+        >>> toolkit.set_fill(rows=[1], fill_type='solid', start_color='#f4d2d3')
+
+        Once a cell has a pattern, the colour can be changed on its own:
+
+        >>> toolkit.set_fill(rows=[1], start_color='#ffff00')
+
+        Yellow where rows 1 and 2 meet columns 1 and 2:
+
+        >>> toolkit.set_fill(
+        ...     rows=[1, 2], columns=[1, 2], intersections_only=True,
+        ...     fill_type='solid', start_color='#ffff00',
+        ... )
         """
         if start_color is None or end_color is None:
             # A pattern fill has no colourless state: its default foreground is an
@@ -780,16 +803,22 @@ class WorksheetToolkit:
         color : str, optional
             Hex color code, e.g., '#f4d2d3'
 
-        Example
-        -------
-        >>> # Make rows 1 and 2 bold
-        >>> set_font(rows=[1, 2], bold=True)
-        >>>
-        >>> # Set the font size for the following cells only: row1/col1, row2/col1, row1/col2, row2/col2
-        >>> set_font(rows=[1, 2], columns=[1, 2], intersections_only=True, size=16)
-        >>>
-        >>> # Set the font color for all of row 1 and 2, and all of columns 1 and 2
-        >>> set_font(rows=[1, 2], columns=[1, 2], color='#000000')
+        Examples
+        --------
+        Bold rows 1 and 2:
+
+        >>> toolkit.set_font(rows=[1, 2], bold=True)
+
+        Size 16 on the four cells where rows 1 and 2 meet columns 1 and 2:
+
+        >>> toolkit.set_font(rows=[1, 2], columns=[1, 2], intersections_only=True, size=16)
+
+        With ``intersections_only=False``, all of rows 1 and 2 and all of columns
+        1 and 2, which is a cross rather than a block:
+
+        >>> toolkit.set_font(
+        ...     rows=[1, 2], columns=[1, 2], intersections_only=False, color='#000000'
+        ... )
         """
         parameters = {
             "name": name,
