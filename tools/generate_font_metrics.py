@@ -137,9 +137,9 @@ def main(font_dir):
         "Each table is keyed by width so that characters sharing one stay visible\n"
         "rather than being repeated two hundred times.\n"
         '"""\n\n'
-        f"WIDTH_GROUPS = {{\n{body}\n}}\n\n"
-        f"ALIASES = {{\n{aliases}\n}}\n\n"
-        "FONT_WIDTHS = {\n"
+        f"WIDTH_GROUPS: dict[str, dict[float, str]] = {{\n{body}\n}}\n\n"
+        f"ALIASES: dict[str, str] = {{\n{aliases}\n}}\n\n"
+        "FONT_WIDTHS: dict[str, dict[str, float]] = {\n"
         "    name: {character: width for width, characters in groups.items() "
         "for character in characters}\n"
         "    for name, groups in WIDTH_GROUPS.items()\n"

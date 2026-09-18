@@ -1,9 +1,15 @@
 """Reading and writing the hex colours the toolkit accepts."""
 
-from ._sentinel import UNCHANGED
+from __future__ import annotations
+
+from typing import overload
+
+from openpyxl.styles.colors import Color
+
+from ._sentinel import UNCHANGED, Unchanged
 
 
-def has_color(value):
+def has_color(value: Color | str | None) -> bool:
     """True when a colour carries something the user chose.
 
     A cell that was never coloured reports the ARGB default rather than nothing,
@@ -18,7 +24,15 @@ def has_color(value):
     return (value.rgb or "").upper() not in ("", "00000000")
 
 
-def normalize_color(color):
+@overload
+def normalize_color(color: Unchanged) -> Unchanged: ...
+@overload
+def normalize_color(color: None) -> None: ...
+@overload
+def normalize_color(color: str) -> str: ...
+
+
+def normalize_color(color: str | None | Unchanged) -> str | None | Unchanged:
     """Turn '#f4d2d3' or 'f4d2d3' into the 8-digit ARGB openpyxl stores."""
     if color is UNCHANGED:
         return UNCHANGED

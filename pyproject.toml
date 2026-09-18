@@ -40,7 +40,15 @@ Changelog = "https://github.com/emily-chan2/openpyxl-toolkit/blob/main/CHANGELOG
 # in your editor, and the lint job goes red for no real reason.
 lint = ["ruff==0.16.7"]
 test = ["pytest>=8"]
-dev = [{ include-group = "lint" }, { include-group = "test" }]
+# Pinned for the same reason as ruff: a new mypy or a new stub release can
+# start reporting something the old one did not, and the job then fails on a
+# day nobody touched the code.
+typecheck = ["mypy==2.3.1", "types-openpyxl==3.1.5.20260827"]
+dev = [
+    { include-group = "lint" },
+    { include-group = "test" },
+    { include-group = "typecheck" },
+]
 
 [tool.hatch.version]
 path = "src/openpyxl_toolkit/__init__.py"
@@ -50,6 +58,14 @@ include = ["src/", "tests/", "tools/", "README.md", "LICENSE", "CHANGELOG.md", "
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openpyxl_toolkit"]
+
+[tool.mypy]
+# 3.10 is the oldest version supported, and the one the annotations have to
+# be valid on. Only the package is checked: the tests would need annotating
+# first, which is a separate job.
+files = ["src/openpyxl_toolkit"]
+python_version = "3.10"
+strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

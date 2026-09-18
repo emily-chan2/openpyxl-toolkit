@@ -4,11 +4,20 @@ Excel shows a stored value through the cell's number format, and a column is
 fitted to what the reader sees rather than to the value underneath.
 """
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from datetime import date, datetime, time
+from typing import TYPE_CHECKING, Any
 
 from openpyxl.styles import DEFAULT_FONT
 
 from . import _metrics
+
+if TYPE_CHECKING:
+    from openpyxl.worksheet.worksheet import Worksheet
+
+    from ._types import AnyCell, FontSpec
 
 # Excel date tokens, longest first so "yyyy" is matched before "yy". Each one maps
 # to a function of the value, rather than to a strftime directive: the no-padding
@@ -16,7 +25,7 @@ from . import _metrics
 # and falling back on those platforms silently mis-measured the column. The
 # name-based parts still go through strftime, which is portable and gives the
 # locale's own month and day names.
-DATE_TOKENS = (
+DATE_TOKENS: tuple[tuple[str, Callable[[Any], str]], ...] = (
     ("yyyy", lambda v: f"{v.year:04d}"),
     ("yy", lambda v: f"{v.year % 100:02d}"),
     ("mmmm", lambda v: v.strftime("%B")),
@@ -31,7 +40,7 @@ DATE_TOKENS = (
 )
 
 
-def _month_or_minute(value, after_hour, padded):
+def _month_or_minute(value: Any, after_hour: bool, padded: bool) -> str | None:
     """What an "m" token stands for, or None when the value does not carry it.
 
     An "m" is minutes once an hour token has been seen and a month otherwise.
@@ -44,7 +53,7 @@ def _month_or_minute(value, after_hour, padded):
     return f"{number:02d}" if padded else str(number)
 
 
-def displayed_text(cell):
+def displayed_text(cell: AnyCell) -> str:
     """The text Excel shows in a cell, as far as it can be worked out cheaply.
 
     Only dates and times are translated. Excel's number formats are a language of
@@ -70,7 +79,7 @@ def displayed_text(cell):
     # An hour is written 12-hour when the code also carries AM/PM.
     twelve_hour = "am/pm" in code
 
-    def hour(value, padded):
+    def hour(value: Any, padded: bool) -> str:
         shown = value.hour
         if twelve_hour:
             shown = shown % 12 or 12
@@ -107,14 +116,14 @@ def displayed_text(cell):
     return "".join(out)
 
 
-def measure_text(text, font, normal_font):
+def measure_text(text: str, font: FontSpec, normal_font: FontSpec) -> float:
     """Column width that fits ``text``, from the real advances of its font."""
     name, size = font
     base_name, base_size = normal_font
     return _metrics.column_width(text, size, base_size, name, base_name)
 
 
-def workbook_normal_font(worksheet):
+def workbook_normal_font(worksheet: Worksheet) -> FontSpec:
     """The workbook's normal font, as ``(name, point_size)``.
 
     A cell with no font record of its own inherits this, and Excel's column
@@ -122,7 +131,8 @@ def workbook_normal_font(worksheet):
     """
     fonts = getattr(worksheet.parent, "_fonts", None)
     normal = fonts[0] if fonts else None
-    return (
-        getattr(normal, "name", None) or DEFAULT_FONT.name,
-        getattr(normal, "sz", None) or DEFAULT_FONT.sz,
-    )
+    # DEFAULT_FONT is annotated as carrying an optional name and size, though it
+    # always has both; the last fallback is what keeps the return type honest.
+    name = getattr(normal, "name", None) or DEFAULT_FONT.name or _metrics.DEFAULT_FONT_NAME
+    size = getattr(normal, "sz", None) or DEFAULT_FONT.sz or 11.0
+    return (str(name), float(size))

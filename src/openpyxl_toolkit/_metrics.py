@@ -25,18 +25,23 @@ Two details are easy to get wrong and both are load-bearing:
   of ten digits at 11.33 rather than the 10.71 the unit defines.
 """
 
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Final
+
 from ._font_widths import ALIASES, FONT_WIDTHS
 
-DEFAULT_FONT_NAME = "calibri"
+DEFAULT_FONT_NAME: Final = "calibri"
 
 # Excel adds two pixels of padding either side of the text plus one for the
 # gridline, and that total is part of its own width formula.
-CELL_PADDING_PIXELS = 5
+CELL_PADDING_PIXELS: Final = 5
 
-PIXELS_PER_POINT = 96 / 72
+PIXELS_PER_POINT: Final = 96 / 72
 
 
-def widths_for(font_name):
+def widths_for(font_name: str | None) -> tuple[Mapping[str, float], bool]:
     """Advance widths for ``font_name``, falling back to the default face.
 
     Returns ``(widths, matched)``. ``matched`` is False when the font is one we
@@ -51,28 +56,34 @@ def widths_for(font_name):
     return table, True
 
 
-def known_fonts():
+def known_fonts() -> list[str]:
     """Every font name that can be measured, aliases included."""
     return sorted(set(FONT_WIDTHS) | set(ALIASES))
 
 
-def digit_width(widths):
+def digit_width(widths: Mapping[str, float]) -> float:
     """Em fraction of the widest digit. Excel's width unit is one of these."""
     return max(widths[d] for d in "0123456789")
 
 
-def text_pixels(text, point_size, widths):
+def text_pixels(text: str, point_size: float, widths: Mapping[str, float]) -> int:
     fallback = digit_width(widths)
     return sum(
         round(widths.get(character, fallback) * point_size * PIXELS_PER_POINT) for character in text
     )
 
 
-def max_digit_pixels(point_size, widths):
+def max_digit_pixels(point_size: float, widths: Mapping[str, float]) -> int:
     return max(1, round(digit_width(widths) * point_size * PIXELS_PER_POINT))
 
 
-def column_width(text, point_size, base_point_size=None, font_name=None, base_font_name=None):
+def column_width(
+    text: str,
+    point_size: float,
+    base_point_size: float | None = None,
+    font_name: str | None = None,
+    base_font_name: str | None = None,
+) -> float:
     """Column width that fits ``text``.
 
     ``point_size``/``font_name`` describe the text being measured.
