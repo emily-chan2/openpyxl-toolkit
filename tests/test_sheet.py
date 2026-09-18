@@ -9,7 +9,7 @@ from openpyxl_toolkit import WorksheetToolkit
 
 
 def _grid(worksheet, rows, columns):
-    """Give the worksheet a real used range of ``rows`` x ``columns`` populated cells."""
+    """Give the worksheet a used range of ``rows`` x ``columns`` populated cells."""
     for row in range(1, rows + 1):
         for column in range(1, columns + 1):
             worksheet.cell(row=row, column=column, value=f"r{row}c{column}")
@@ -128,7 +128,7 @@ def test_duplicate_and_unordered_selectors_touch_each_cell_once(sheet, roundtrip
 
 
 def test_a_later_font_attribute_does_not_reset_an_earlier_one(sheet, roundtrip):
-    """Overlapping selections must merge: the second call keeps the first call's bold."""
+    """Overlapping selections merge: the second call keeps the first call's bold."""
     _grid(sheet, 2, 3)
     toolkit = WorksheetToolkit(sheet)
 
@@ -188,7 +188,7 @@ def test_the_default_selection_does_not_extend_the_sheet(sheet):
 
 
 def test_union_selection_does_not_reach_rows_the_caller_never_asked_for(sheet, roundtrip):
-    """Row 3 is neither in the requested rows nor in the sheet's data, so it must stay plain."""
+    """Row 3 is in neither the requested rows nor the data, so it stays plain."""
     _grid(sheet, 2, 2)
 
     WorksheetToolkit(sheet).set_font(rows=[4], columns=[1], intersections_only=False, bold=True)
@@ -240,7 +240,7 @@ def test_unfreezing_leaves_no_pane_state_behind(sheet, roundtrip):
 
 
 def test_a_column_beyond_the_grid_is_rejected(sheet):
-    """openpyxl creates such a cell unvalidated, and the workbook can then never be saved."""
+    """openpyxl creates such a cell unvalidated, and the workbook cannot be saved."""
     with pytest.raises(ValueError, match="column 20000"):
         WorksheetToolkit(sheet).set_font(rows=[1], columns=[20000], bold=True)
 
@@ -256,7 +256,7 @@ def test_a_column_of_zero_is_rejected(sheet):
 
 
 def test_rejecting_a_bad_index_leaves_the_workbook_saveable(sheet, roundtrip):
-    """The point of rejecting early: a materialised out-of-range cell is unrecoverable."""
+    """Rejecting early matters: a materialised out-of-range cell cannot be undone."""
     _grid(sheet, 2, 2)
     toolkit = WorksheetToolkit(sheet)
 
@@ -267,7 +267,7 @@ def test_rejecting_a_bad_index_leaves_the_workbook_saveable(sheet, roundtrip):
 
 
 def test_the_dimension_setters_are_bounds_checked_too(sheet):
-    """16385 is past Excel's limit but inside get_column_letter's, so only our check catches it."""
+    """16385 is past Excel's limit but inside get_column_letter's range."""
     toolkit = WorksheetToolkit(sheet)
     for call in (
         lambda: toolkit.set_column_width(columns=[16385], width=12),
@@ -283,7 +283,7 @@ def test_set_row_height_is_bounds_checked(sheet):
 
 
 def test_best_fit_rejects_a_bad_column_before_materialising_it(sheet, roundtrip):
-    """get_column_letter raises only after ws.cell has already made the sheet unsaveable."""
+    """get_column_letter raises only after ws.cell has made the sheet unsaveable."""
     _grid(sheet, 2, 2)
     with pytest.raises(ValueError):
         WorksheetToolkit(sheet).set_column_best_fit(columns=[1, 20000])

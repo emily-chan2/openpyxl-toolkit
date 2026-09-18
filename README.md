@@ -102,9 +102,9 @@ while omitting `color` keeps whatever was there.
 
 ## Fitting columns
 
-`set_column_best_fit` measures the real per-character advances of the font, so a
-column of narrow letters is not given the same width as one of capitals. Excel's
-own formula turns that into a width:
+`set_column_best_fit` measures every character at its own width in the font being
+used, so a column of i's does not come out as wide as a column of W's. Excel's own
+formula turns the total into a width:
 
 ```
 width = (pixels of text + 5 padding pixels) / max digit width
@@ -118,7 +118,7 @@ width = (pixels of text + 5 padding pixels) / max digit width
 
 Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman, Courier
 New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is measured with
-Calibri's advances unless `measure` is given.
+Calibri's character widths unless `measure` is given.
 
 Three things worth knowing:
 

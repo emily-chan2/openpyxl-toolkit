@@ -21,7 +21,7 @@ def test_public_surface():
 
 
 def test_py_typed_ships_with_the_package():
-    """Without the marker, type checkers ignore the annotations for anyone installing it."""
+    """Without the marker, a type checker ignores the annotations once installed."""
     marker = resources.files("openpyxl_toolkit") / "py.typed"
     assert marker.is_file()
 

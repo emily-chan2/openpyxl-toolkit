@@ -117,7 +117,7 @@ def displayed_text(cell: AnyCell) -> str:
 
 
 def measure_text(text: str, font: FontSpec, normal_font: FontSpec) -> float:
-    """Column width that fits ``text``, from the real advances of its font."""
+    """Column width that fits ``text``, from the character widths of its font."""
     name, size = font
     base_name, base_size = normal_font
     return _metrics.column_width(text, size, base_size, name, base_name)

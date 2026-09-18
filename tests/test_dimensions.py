@@ -127,7 +127,7 @@ def test_best_fit_adds_padding_on_top_of_the_measured_width(sheet, roundtrip):
 
 
 def test_setting_a_row_height_leaves_an_earlier_column_width_intact(sheet, roundtrip):
-    """The library's core promise: a later call adds to the layout, it does not replace it."""
+    """A later call adds to the layout rather than replacing it."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_column_width(columns=[1], width=25)
     toolkit.set_row_height(rows=[1], height=40)
@@ -194,7 +194,7 @@ def test_best_fit_applies_to_non_anchor_merged_columns(sheet, roundtrip):
 
 
 def test_best_fit_handles_a_font_with_no_explicit_size(sheet, roundtrip):
-    """A font that inherits its size should fit like the same text at the default size."""
+    """A font inheriting its size fits like the same text at the default size."""
     sheet["A1"] = "hello world"
     sheet["A1"].font = Font(bold=True)
     sheet["B1"] = "hello world"
@@ -277,7 +277,7 @@ def test_row_height_without_a_height_is_rejected(sheet):
 
 
 def test_best_fit_measures_an_unstyled_cell_at_the_workbook_default_size(sheet, roundtrip):
-    """A cell with no font of its own inherits the workbook's size, not a hardcoded 11."""
+    """A cell with no font inherits the workbook's size, not a hardcoded 11."""
     sheet.parent._fonts[0] = Font(name="Calibri", sz=22)
     sheet["A1"] = "hello world"
     sheet["B1"] = "hello world"
@@ -382,7 +382,7 @@ def test_best_fit_accepts_a_custom_measure(sheet, roundtrip):
 
 
 def test_best_fit_uses_the_metrics_of_the_cell_font(sheet, roundtrip):
-    """Courier New is monospaced and wider than Calibri, so the same text needs more room."""
+    """Courier New is monospaced and wider than Calibri, so text needs more room."""
     sheet["A1"] = "iiiiiiiiii"
     sheet["B1"] = "iiiiiiiiii"
     sheet["B1"].font = Font(name="Courier New")

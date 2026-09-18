@@ -79,7 +79,14 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-# "D" (pydocstyle) is deliberately absent: the docstrings are rewritten in a later
-# stage, and enabling the rules now would churn every one of them twice.
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# "D" (pydocstyle) is still absent. It was left out while the docstrings were being
+# rewritten; now that they are consistent it would be worth trying, with
+# convention = "numpy" so the rules that argue with that style stay off.
+select = ["E", "F", "I", "UP", "B", "SIM", "W505"]
 ignore = ["E501"]
+
+[tool.ruff.lint.pycodestyle]
+# E501 stays off for code, which the formatter already holds to line-length.
+# W505 measures docstrings and comments only, where the text is indented again
+# by help() and by an editor's hover panel, so it needs to be narrower.
+max-doc-length = 88

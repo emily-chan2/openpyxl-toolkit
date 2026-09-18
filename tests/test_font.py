@@ -10,7 +10,7 @@ from openpyxl_toolkit import WorksheetToolkit
 
 @pytest.fixture
 def grid(sheet):
-    """A populated 3x3 block, so row and column selection have more than one cell to hit."""
+    """A populated 3x3 block, so row and column selection hit more than one cell."""
     for row in range(1, 4):
         for column in range(1, 4):
             sheet.cell(row=row, column=column, value=f"r{row}c{column}")
@@ -53,7 +53,7 @@ def test_typeface_name_survives_the_round_trip(sheet, roundtrip):
 
 
 def test_a_later_call_keeps_attributes_set_by_an_earlier_one(sheet, roundtrip):
-    """The whole point of the library: setting italic must not undo bold, size and name."""
+    """Setting italic must not undo bold, size and name."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_font(bold=True, size=14, name="Georgia")
     toolkit.set_font(italic=True)

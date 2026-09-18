@@ -217,7 +217,7 @@ def test_a_failing_call_leaves_no_cell_in_the_range_painted(sheet, roundtrip, mo
 
 
 def test_a_cell_does_not_share_a_colour_object_with_the_fill_it_was_read_from(sheet, roundtrip):
-    """A Color is stored by reference; sharing one lets a later mutation repaint cells."""
+    """A Color is stored by reference; sharing one lets a mutation repaint cells."""
     _grid(sheet)
     header = PatternFill(patternType="solid", fgColor=Color(rgb="FF3366CC"))
     sheet["A1"].fill = header
@@ -229,7 +229,7 @@ def test_a_cell_does_not_share_a_colour_object_with_the_fill_it_was_read_from(sh
 
 
 def test_a_gradient_survives_a_call_that_asks_for_nothing(sheet, roundtrip):
-    """set_fill with no style arguments must not flatten a gradient into a blank fill."""
+    """No style arguments must leave a gradient alone, not flatten it."""
     _grid(sheet)
     sheet["A1"].fill = GradientFill(stop=("FFFFFFFF", "FFFF0000"))
 
@@ -239,7 +239,7 @@ def test_a_gradient_survives_a_call_that_asks_for_nothing(sheet, roundtrip):
 
 
 def test_clearing_a_colour_is_rejected_rather_than_silently_repainting(sheet):
-    """None has no meaning for a pattern fill: its default foreground is opaque black."""
+    """A pattern fill has no None state: its default foreground is opaque black."""
     _grid(sheet)
     toolkit = WorksheetToolkit(sheet)
     for kwargs in ({"start_color": None}, {"end_color": None}):
