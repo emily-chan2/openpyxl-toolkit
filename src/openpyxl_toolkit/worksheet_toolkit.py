@@ -47,12 +47,18 @@ _BORDER_SIDES: tuple[BorderSide, ...] = get_args(BorderSide)
 
 
 class WorksheetToolkit:
-    """
-    WorksheetToolkit
-    ----------------
-    A toolkit for formatting openpyxl worksheets.
+    """Formatting helpers for one openpyxl worksheet.
 
-    Most methods return self to allow method chaining.
+    Each method merges what it is given into the formatting a cell already
+    carries, rather than replacing it, and returns the toolkit so that calls can
+    be chained. A parameter left out keeps the value it had; None is a value in
+    its own right, and clears the thing it names.
+
+    Examples
+    --------
+    >>> toolkit.set_font(cells="A1:C1", bold=True).set_fill(
+    ...     cells="A1:C1", fill_type='solid', start_color='#eef2f6'
+    ... )
     """
 
     def __init__(self, worksheet: Worksheet) -> None:
