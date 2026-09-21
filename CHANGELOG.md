@@ -7,88 +7,183 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing has been released yet; this section becomes 0.1.0. Until now the project was one
+file, `worksheet_toolkit.py`, sitting at the root of this repository to be copied into a
+project. The entries below are written against that file, since it is the only version
+anyone has had.
+
 ### Added
 
-- `set_number_format` sets the code Excel uses to display a value: `'0.00'`, `'"$"#,##0.00'`,
-  `'0.00%'`, `'yyyy-mm-dd'`, `';;;'` to show nothing. It takes the same `cells`, `rows` and
-  `columns` arguments as the other setters. A format that is not a string raises `TypeError`:
-  openpyxl accepts the assignment and the workbook then cannot be saved, with the failure
-  surfacing from the stylesheet writer with no mention of the cell that caused it.
-  `set_column_best_fit` still measures these cells as the value is stored rather than as they
-  display.
+- Packaged for distribution: `src/` layout, `pyproject.toml` (hatchling), and
+  `openpyxl_toolkit` as the import name. `WorksheetToolkit` is re-exported from the
+  package root, so `from openpyxl_toolkit import WorksheetToolkit` works. Python 3.10 or
+  newer and openpyxl 3.1 or newer are required; the loose file had no floor of its own,
+  so anyone on 3.9 stays on the copied version.
+- Type hints across the public surface, with a `py.typed` marker, without which a
+  checker ignores the annotations in an installed copy. Alignment names, border styles,
+  fill patterns and underline styles are `Literal` types, so an editor completes them
+  and reports a typo such as `horizontal='centre'` where openpyxl would have raised at
+  the call. The rest are stricter than openpyxl is at runtime, which takes `bold='no'`
+  and stores `True`, and `name=42` and stores `'42'`.
+- `set_number_format` sets the code Excel uses to display a value: `'0.00'`,
+  `'"$"#,##0.00'`, `'0.00%'`, `'yyyy-mm-dd'`, `';;;'` to show nothing. It takes the same
+  `cells`, `rows` and `columns` arguments as the other setters. A format that is not a
+  string raises `TypeError`: openpyxl accepts the assignment and the workbook then
+  cannot be saved, with the failure surfacing from the stylesheet writer with no mention
+  of the cell that caused it.
+- `unmerge_cells`, taking the same arguments as `merge_cells`. Calling it on a range
+  that is not merged does nothing; a range that cannot be parsed still raises.
+- `min_width` and `max_width` on `set_column_best_fit`, for what the measurement cannot
+  see: a currency column is measured from the stored value and comes out too narrow,
+  while one long cell makes a column too wide to sit beside the others. A `measure` hook
+  takes metrics for a face with no built-in table.
+- `WorksheetToolkit` has a `__repr__`, so a chained call at a prompt echoes
+  `<WorksheetToolkit 'Sheet1'>` rather than a memory address. The "leave this alone"
+  default every styling parameter carries prints as `<unchanged>` for the same reason:
+  `help()` and an editor's hover panel showed `<object object at 0x100d64a70>`, a
+  different address each run.
+- Test suite covering the save/reload round trip, and continuous integration across
+  Python 3.10-3.14. The round trip is what the suite is built around, because several of
+  the bugs below are invisible until the file is written out and read back.
+
+### Changed
+
+- **Breaking:** `set_column_best_fit` measures text with the real per-character advances
+  of the font instead of treating every character as the same width, and uses Excel's own
+  formula to convert that to a column width. A column of narrow letters is no longer as
+  wide as one of capitals: ten `i`s and ten `W`s used to be given identical widths. Every
+  existing call produces different widths. Built-in metrics cover Aptos, Calibri, Arial,
+  Helvetica, Times New Roman, Courier New, Cambria, Verdana, Georgia, Tahoma and Futura;
+  anything else falls back to Calibri or can be handled with the new `measure` argument.
+- **Breaking:** `set_column_best_fit`'s `padding` defaults to 0. The old default of 2 was
+  making up for the formula not counting Excel's own 5 pixels of cell padding, which it
+  now does. Between this and the per-character measurement, a column of ordinary text
+  sized with the defaults comes out 10-25% narrower than before. A column of wide
+  capitals goes the other way, since its characters were the ones being under-measured.
+- **Breaking:** `rows` and `columns` take a list. `rows=3` was accepted as a shorthand
+  for `rows=[3]`, on the style setters and the dimension setters alike, and now raises
+  `TypeError` naming the list form. A count and a single index are close enough to each
+  other that accepting both hid the typo. Tuples, ranges, sets and generators still work.
+- **Breaking:** an empty `rows` or `columns` selects every row or column on the style
+  setters, whichever form the argument takes. An empty list already did; an empty
+  iterator selected nothing, so a generator that filtered everything out formatted
+  nothing and now formats every row. The dimension setters are unaffected: an empty
+  selection there still does nothing.
+- **Breaking:** `width`, `height` and `set_outside_border`'s `style` are required.
+  Omitting a width or a height did nothing at all and said nothing about it. Omitting
+  the style drew no border, but a `color` passed alongside it was still written, which
+  repainted a border already there.
+- **Breaking:** `set_zoom_scale` is keyword-only, like every other setter. It was the
+  last one taking its value positionally, so `set_zoom_scale(85)` becomes
+  `set_zoom_scale(zoom_scale=85)`. `freeze_panes(cell)` is not a setter and stays
+  positional.
+- **Breaking:** a foreground colour with nothing to show it on is rejected rather than
+  recorded. `set_fill(start_color=...)` on a cell with no pattern used to store a colour
+  that never appeared, while the identical call on an already-filled cell worked, so one
+  line behaved differently depending on what was in the cell. `set_border(color=...)`
+  with no style gets the same rule. The mirror case raises too: `fill_type='solid'` with
+  no colour painted the cell black, an unset foreground being ARGB `00000000`.
+  `fill_type=None` still removes a fill and trips neither check.
+- **Breaking:** an unknown border side is rejected. `sides=('lft',)` drew nothing and
+  raised nothing.
+- **Breaking:** a negative width or height raises instead of being written to the file,
+  and a width or height of 0 hides the column or row. openpyxl's writer drops a falsy
+  dimension, so hiding is the only way to honour what was asked for, and it survives a
+  round trip.
+- **Breaking:** row and column indexes outside Excel's grid are rejected, in the
+  dimension setters as well as the style setters, against Excel's maximums of 1,048,576
+  rows and 16,384 columns. openpyxl enforces only the row maximum, and only when creating
+  a cell: an out-of-grid column, or an out-of-grid row reached through `set_row_height`,
+  went into the file without complaint. A non-integer index raises `TypeError`: a float
+  wrote a cell reference such as `A1.5`, and openpyxl could not read that workbook back.
+- **Breaking:** `merge_cells` with missing coordinates says which ones instead of letting
+  openpyxl report `expected <class 'int'>`, and raises `ValueError` where openpyxl raised
+  `TypeError`. Code catching `TypeError` around a merge stops catching it; a stray
+  `range_string` is still a `TypeError`, since Python raises that one.
+- `cells` accepts a range string on every method that names a range: `set_font`,
+  `set_fill`, `set_border`, `set_alignment`, `merge_cells`, `unmerge_cells` and
+  `set_outside_border`. On the style setters and `set_outside_border` it takes a block
+  (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`) or a single cell (`"C3"`),
+  and an unbounded side is filled in from the used range. `merge_cells` and
+  `unmerge_cells` take a block or a single cell; an unbounded range reaches openpyxl and
+  raises there. Mixing `cells` with `rows`, `columns` or the four coordinates raises,
+  naming the arguments that would have been ignored.
+- `WorksheetToolkit` raises `TypeError` if given anything other than a worksheet.
+  Passing the workbook was accepted, then surfaced on the first method call as an
+  `AttributeError` about a missing `cell` or `sheet_view` -- except `freeze_panes`, which
+  raised nothing and set the attribute on the workbook, where nothing reads it.
+- `set_column_width`, `set_row_height` and `set_outside_border` take their required
+  argument first. All three are keyword-only, so this changes no call.
+
+### Removed
+
+- **Breaking:** `range_string` is gone from `merge_cells`. Use `cells` instead; it is the
+  same string. A call still passing `range_string` raises `TypeError` rather than having
+  the argument quietly ignored.
 
 ### Fixed
 
+- `set_font` and `set_alignment` no longer reset the attributes they do not expose.
+  They built a new `Font` or `Alignment` from their own arguments, which cleared
+  `vertAlign`, `scheme`, `family`, `charset`, `outline`, `shadow`, `condense` and
+  `extend` on a font, and `justifyLastLine` and `relativeIndent` on an alignment -- the
+  opposite of the merging the library exists to do. Every call was affected, not only
+  one on an unusual font: Excel's default carries `family` and `scheme`, so
+  `set_font(bold=True)` on an untouched cell stripped both. Both methods copy the
+  existing object and set only what they were given.
+- `freeze_panes(None)` removes the split selections openpyxl leaves behind when a frozen
+  pane goes away -- three of them after a freeze at a cell such as `B2`. A sheet left
+  with those was what made Excel offer to repair the workbook. The pane itself was
+  already being cleared: the old code passed `"A1"`, which openpyxl reads as unfreeze.
+- `set_border` writes the colour through the shared normaliser. It stripped the `#`
+  itself instead, so a six-digit `'#ff0000'` reached openpyxl with no alpha byte and was
+  stored as ARGB `00ff0000`, where the same input through `set_font` stored `FFff0000`:
+  one colour, two values in the same file. `set_outside_border` goes through `set_border`
+  and was fixed with it. Every colour the toolkit writes is now upper-cased as well, so
+  the same input gives the same bytes whichever setter wrote it.
+- `set_border` no longer rewrites both diagonal flags on a call touching either, so
+  adding `diagonal_down` leaves an existing `diagonal_up` on. That also leaves no call
+  that turns one off: clearing the flag used to be a side effect of naming the other.
 - `set_fill` no longer raises `TypeError` on a cell whose existing fill uses a theme,
   indexed or automatic colour. Reading `.rgb` off such a colour returns openpyxl's
   descriptor rather than a string, so the `Color` itself is used instead -- copied, not
   shared, since a `Color` is stored by reference and sharing one lets a later mutation
   repaint every cell that inherited it.
 - `set_fill` no longer raises `AttributeError` on a cell carrying a `GradientFill`. A
-  call that asks for no change leaves the gradient alone; one that does asks replaces it.
-- `set_fill` builds every fill before assigning any of them, so a failure part-way
-  through a range no longer leaves the worksheet half-formatted.
+  call that asks for no change leaves the gradient alone, one naming both a `fill_type`
+  and a colour replaces it, and `fill_type=None` clears it. A colour or a pattern on its
+  own raises `ValueError`, a gradient having neither to supply the half left out.
+- `set_fill` and `set_border` build every style object before assigning any of them, so
+  a failure part-way through a range no longer leaves the worksheet half-formatted.
 - `set_column_width` and `set_column_best_fit` no longer raise `AttributeError` when
   row 1 of a target column belongs to a merged range. They looked the column letter up
   through a cell, and a non-anchor `MergedCell` has no `column_letter`.
+- `set_column_width` no longer extends the sheet's used range. Looking the letter up
+  through `ws.cell()` created that cell, so widening an empty column pushed `max_column`
+  out to it, and every later call defaulting to "everything in use" then covered the
+  columns in between.
 - `set_column_best_fit` no longer raises `TypeError` on a cell whose font has no explicit
   size, which `Font(bold=True)` alone is enough to produce. It falls back to the
   workbook's own default font size rather than assuming 11pt.
-- `set_font(color=None)` clears the font colour instead of raising `AttributeError`;
-  `_UNCHANGED` remains the way to say "leave it alone". `set_fill` rejects a `None`
-  colour with `ValueError`, because a pattern fill has no colourless state -- pass
-  `fill_type=None` to remove the fill instead.
-- Row and column indexes outside Excel's grid are rejected, in the dimension setters as
-  well as the style setters. openpyxl created such cells without complaint and the
-  workbook could then never be saved. Non-integer indexes raise `TypeError`: a float
-  wrote a cell reference such as `A1.5` that openpyxl could not read back.
+- `set_column_best_fit` sizes a date or time from what Excel displays rather than from
+  the stored value, so a cell holding `2026-09-05 14:07:03` under `yyyy-mm-dd` is sized
+  for ten characters rather than nineteen. Other number formats, including the ones
+  `set_number_format` writes, are still measured as stored, so a currency column can come
+  out narrower than it needs to be.
+- `set_column_best_fit` skips a column it measured nothing in -- one that is empty, one
+  holding only formulas under the default `ignore_formulas=True`, and one whose every row
+  is in `ignore_rows`. All three measured zero and were written down to the bare padding,
+  wiping a width set deliberately beforehand.
+- Widths and heights are held to Excel's own maximums of 255 and 409. A long enough
+  value sized a column past what Excel accepts.
+- `set_font(color=None)` clears the font colour instead of raising `AttributeError`.
+  Omitting an argument is how to leave a value alone; `None` is a value in its own right
+  and clears the thing it names. `set_fill` rejects a `None` colour with `ValueError`,
+  because a pattern fill has no colourless state -- pass `fill_type=None` to remove the
+  fill instead.
+- Naming rows and columns with `intersections_only=False` no longer formats rows nobody
+  asked for. The sheet bounds are read once before the sweep; `ws.cell()` creates a cell
+  that does not exist, so a named row past the end of the sheet grew `max_row` during
+  the row pass and the column pass then swept down to it.
 
-### Changed
-
-- `cells=` accepts a range string on every method that names a range:
-  `set_font`, `set_fill`, `set_border`, `set_alignment`, `merge_cells`,
-  `unmerge_cells` and `set_outside_border`. It takes a block (`"A1:C3"`), whole
-  columns (`"B:D"`), whole rows (`"2:5"`) or a single cell (`"C3"`), and an
-  unbounded side is filled in from the used range. Mixing it with `rows=`,
-  `columns=` or the four coordinates raises.
-- **Breaking:** `range_string` is removed from `merge_cells` and
-  `unmerge_cells`. Use `cells=` instead; it is the same string.
-
-- `set_zoom_scale` is keyword-only, like every other method. `set_zoom_scale(85)`
-  becomes `set_zoom_scale(zoom_scale=85)`.
-- `set_column_width`, `set_row_height` and `set_outside_border` take their required
-  argument first. Every method is keyword-only, so this changes no call.
-- `WorksheetToolkit` raises `TypeError` if given anything other than a worksheet.
-  Passing the workbook used to surface much later as an `AttributeError` from
-  inside a private method.
-- `merge_cells` with no arguments says which coordinates are missing instead of
-  letting openpyxl report `expected <class 'int'>`.
-
-### Added
-
-- `unmerge_cells`, taking the same arguments as `merge_cells`. Calling it on a
-  range that is not merged does nothing; a range that cannot be parsed still raises.
-
-- `set_column_best_fit` measures text with the real per-character advances of the
-  font instead of treating every character as the same width, and uses Excel's own
-  formula to convert that to a column width. Text columns come out 10-25% narrower,
-  and a column of narrow letters is no longer as wide as one of capitals. Built-in
-  metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman, Courier New,
-  Cambria, Verdana, Georgia, Tahoma and Futura; anything else falls back to Calibri
-  or can be handled with the new `measure` argument.
-- `set_column_best_fit`'s `padding` now defaults to 0. The old default of 2 was
-  making up for the formula not counting Excel's own 5 pixels of cell padding,
-  which it now does.
-
-### Added
-
-- `min_width` and `max_width` on `set_column_best_fit`, and a `measure` hook for
-  supplying metrics for a face with no built-in table.
-
-- Packaged the project for distribution: `src/` layout, `pyproject.toml` (hatchling),
-  and `openpyxl_toolkit` as the import name. `WorksheetToolkit` is re-exported from the
-  package root, so `from openpyxl_toolkit import WorksheetToolkit` works.
-- Test suite covering the save/reload round trip, and continuous integration across
-  Python 3.10-3.14.
-
-[Unreleased]: https://github.com/emily-chan2/openpyxl-toolkit/compare/HEAD
+[Unreleased]: https://github.com/emily-chan2/openpyxl-toolkit/commits/main
