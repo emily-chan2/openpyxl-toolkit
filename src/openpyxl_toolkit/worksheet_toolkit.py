@@ -358,7 +358,8 @@ class WorksheetToolkit:
         style : str, optional
             'hair', 'thin', 'medium', 'thick', 'double', 'dotted', 'dashed',
             'mediumDashed', 'mediumDashDot', 'mediumDashDotDot', 'dashDot',
-            'dashDotDot' or 'slantDashDot'. None removes the line.
+            'dashDotDot' or 'slantDashDot'. None removes the line, and on a diagonal
+            takes that direction away.
         color : str, optional
             Hex color code, such as '#ff0000'.
 
@@ -376,6 +377,12 @@ class WorksheetToolkit:
             with no line and no ``style`` to draw one, if both ``cells`` and
             ``rows`` or ``columns`` are given, or if an index falls outside
             Excel's grid.
+
+        Notes
+        -----
+        A cell stores one diagonal line and a flag for each direction, so the two
+        diagonals cannot carry different styles or colours: styling one while the
+        other is drawn restyles both. Taking one away leaves the other as it was.
 
         Examples
         --------
@@ -434,16 +441,25 @@ class WorksheetToolkit:
                         f"{cell.coordinate} has no diagonal border, so a colour on its own "
                         f"would not show. Pass style='thin' as well."
                     )
-                diagonal = Side(
-                    style=new_style,
-                    color=normalize_color(color)
-                    if color is not UNCHANGED
-                    else current.diagonal.color,
-                )
-                # Only the diagonal actually named is switched on; rewriting both
-                # flags every time is what made one call clear the other.
-                diagonal_up = "diagonal_up" in sides or current.diagonalUp
-                diagonal_down = "diagonal_down" in sides or current.diagonalDown
+                # A cell holds one diagonal line and a flag per direction, so a
+                # direction is drawn only where its flag and that line agree. Only
+                # the direction actually named is touched: rewriting both flags
+                # every time is what made one call clear the other.
+                drawn = new_style is not None
+                diagonal_up = drawn if "diagonal_up" in sides else current.diagonalUp
+                diagonal_down = drawn if "diagonal_down" in sides else current.diagonalDown
+                if not diagonal_up and not diagonal_down:
+                    # Neither direction is left, so the line they shared goes too.
+                    diagonal = Side()
+                else:
+                    diagonal = Side(
+                        # Taking one direction away leaves the other drawing this
+                        # line, so the line itself is only rewritten when asked for.
+                        style=new_style if drawn else current.diagonal.style,
+                        color=normalize_color(color)
+                        if color is not UNCHANGED
+                        else current.diagonal.color,
+                    )
             else:
                 diagonal = current.diagonal
                 diagonal_up = current.diagonalUp

@@ -142,8 +142,11 @@ anyone has had.
   and was fixed with it. Every colour the toolkit writes is now upper-cased as well, so
   the same input gives the same bytes whichever setter wrote it.
 - `set_border` no longer rewrites both diagonal flags on a call touching either, so
-  adding `diagonal_down` leaves an existing `diagonal_up` on. That also leaves no call
-  that turns one off: clearing the flag used to be a side effect of naming the other.
+  adding `diagonal_down` leaves an existing `diagonal_up` on, and `style=None` on a
+  named diagonal takes that direction away as it does on a straight side. A cell holds
+  one diagonal line and a flag per direction, so taking one direction away leaves the
+  other still drawing that line, and the line goes only once neither is drawn. Naming a
+  diagonal with no style no longer raises the flag on a cell that draws nothing.
 - `set_fill` no longer raises `TypeError` on a cell whose existing fill uses a theme,
   indexed or automatic colour. Reading `.rgb` off such a colour returns openpyxl's
   descriptor rather than a string, so the `Color` itself is used instead -- copied, not
