@@ -1,0 +1,138 @@
+name: Bug report
+description: A cell formatted wrongly, or a call that raised
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Faults here usually come down to three things: where the workbook came from,
+        whether the problem survives a save and a reload, and which font a column is
+        measured in. That is what the odd-looking questions below are for.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: >-
+        What did you expect the cell to look like, and what does it actually look
+        like? If Excel offered to repair the file when you opened it, say so here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Code that reproduces it
+      description: >-
+        The shortest script that shows it. Save the workbook and load it back, so
+        the check is against the file rather than against memory.
+      render: python
+      value: |
+        from openpyxl import Workbook, load_workbook
+        from openpyxl_toolkit import WorksheetToolkit
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet["A1"] = "Region"
+
+        WorksheetToolkit(sheet).set_font(cells="A1", bold=True)
+
+        workbook.save("bug.xlsx")
+        print(load_workbook("bug.xlsx").active["A1"].font.bold)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workbook-origin
+    attributes:
+      label: Where did the workbook come from?
+      description: >-
+        A file written by Excel carries theme and indexed colours that a fresh
+        Workbook() never has, and those have caused more crashes here than anything
+        else.
+      options:
+        - "A fresh Workbook() in my own script"
+        - "A file made in Excel, opened with load_workbook()"
+        - "A file some other tool exported, opened with load_workbook()"
+        - "A file this script wrote earlier, reopened"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: checked-saved-file
+    attributes:
+      label: Did you check the saved file?
+      description: "No is a fine answer. It only changes where to look first."
+      options:
+        - "Yes, I opened the saved .xlsx in Excel and it is wrong there"
+        - "Yes, I reloaded it with load_workbook() and it is wrong there"
+        - "No, I only checked the cell in memory, before saving"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you using the toolkit?
+      options:
+        - "pip install openpyxl-toolkit"
+        - "A git checkout"
+        - "I copied worksheet_toolkit.py into my project"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        For the next field:
+
+        ```bash
+        python -c "import sys, platform, openpyxl, openpyxl_toolkit as t; print(t.__version__, openpyxl.__version__, sys.version.split()[0], platform.platform())"
+        ```
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: >-
+        The toolkit, openpyxl, Python and the operating system. If you copied the
+        file rather than installing it, say which commit or when you took it.
+      placeholder: "0.1.0 3.1.5 3.12.4 macOS-15.0-arm64"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: conditions
+    attributes:
+      label: Any of these true?
+      description: >-
+        Each one has been behind a bug here before. Leave them all clear if none
+        apply.
+      options:
+        - label: The cells are merged, or sit inside a merged range
+        - label: The cells already carried formatting before the call
+        - label: The column contains formulas
+        - label: The cells have a number format, such as currency, a percentage or a date
+        - label: The sheet has frozen panes
+        - label: The text is wrapped, rotated or indented
+
+  - type: input
+    id: font
+    attributes:
+      label: Font, if this is about column widths
+      description: >-
+        The face and size the cells are in, and the workbook's Normal style font.
+        Eleven faces have measured metrics and anything else falls back to
+        Calibri's, which is the usual reason a width comes out wrong.
+      placeholder: "Cells in Aptos Narrow 11, Normal style is Aptos 11"
+    validations:
+      required: false
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback, if it raised
+      render: python
+    validations:
+      required: false

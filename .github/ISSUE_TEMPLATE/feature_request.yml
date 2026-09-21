@@ -1,0 +1,81 @@
+name: Feature request
+description: A formatting job the toolkit cannot do yet
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The toolkit formats cells on a worksheet that already exists. It does not
+        write values, and it does nothing at workbook level: charts, images, pivot
+        tables, data validation, conditional formatting and print setup are all
+        outside it for now.
+
+        Two limits in `set_column_best_fit` come up often enough to name here. It
+        assumes text is on one line, so a wrapped column comes out too wide. And it
+        renders only dates and times through their number format — a currency or
+        percentage cell is measured as the value is stored, which is what
+        `min_width` is for.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to format, and what do you do today?
+      description: >-
+        Describe the sheet, and paste the code you write now to get the result you
+        want. A workaround that is merely tedious points at a different fix from
+        one that is impossible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: call
+    attributes:
+      label: What would the call look like?
+      description: >-
+        Invent the signature. Arguments are keyword-only here, and it is worth
+        saying what leaving one out should do as against passing None: omitting
+        keeps the current value, None clears the thing it names.
+      render: python
+      placeholder: |
+        toolkit.set_print_area(cells="A1:F40", fit_to_width=True)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which is it closest to?
+      options:
+        - "A new argument on a method that already exists"
+        - "A new way of formatting cells, rows or columns"
+        - "Column widths: a font measured wrongly, or a format measured as stored"
+        - "Sheet-level: gridlines, tab colour, autofilter, print setup"
+        - "Workbook-level: charts, data validation, conditional formatting, named styles"
+        - "Writing values or building the sheet, rather than formatting it"
+        - "Relaxing a rule that currently raises"
+    validations:
+      required: true
+
+  - type: input
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: >-
+        For example min_width, max_width, ignore_rows, ignore_formulas, a measure
+        function, or setting the property through openpyxl directly. Either one of
+        those is the answer, or knowing it failed is the argument for the feature.
+    validations:
+      required: false
+
+  - type: input
+    id: font
+    attributes:
+      label: Font, if this is about measuring one
+      description: >-
+        The face exactly as Excel names it, and whether an openly licensed font is
+        drawn to match it advance for advance. That second half decides whether the
+        metrics can be generated at all. The measure argument is the escape hatch
+        in the meantime.
+      placeholder: "Garamond; Cormorant Garamond is close but not metric-compatible"
+    validations:
+      required: false
