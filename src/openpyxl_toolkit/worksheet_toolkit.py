@@ -223,8 +223,8 @@ class WorksheetToolkit:
         text_rotation: int | None | Unchanged = UNCHANGED,
         wrap_text: bool | None | Unchanged = UNCHANGED,
         shrink_to_fit: bool | None | Unchanged = UNCHANGED,
-        indent: float | Unchanged = UNCHANGED,
-        reading_order: ReadingOrder | Unchanged = UNCHANGED,
+        indent: float | None | Unchanged = UNCHANGED,
+        reading_order: ReadingOrder | None | Unchanged = UNCHANGED,
     ) -> WorksheetToolkit:
         """Set how text sits inside its cells.
 
@@ -257,10 +257,11 @@ class WorksheetToolkit:
             True reduces the displayed font size until the text fits the column.
         indent : int, optional
             Indent levels, not spaces. Excel renders one level as roughly three
-            characters of the normal font. 0 to 255.
+            characters of the normal font. 0 to 255, and None is another way of
+            saying 0, which is no indent.
         reading_order : int, optional
             Text direction: 0 leaves it to the text, 1 is left-to-right, 2 is
-            right-to-left.
+            right-to-left. None is another way of saying 0.
 
         Returns
         -------
@@ -297,8 +298,8 @@ class WorksheetToolkit:
             "text_rotation": text_rotation,
             "wrap_text": wrap_text,
             "shrink_to_fit": shrink_to_fit,
-            "indent": indent,
-            "readingOrder": reading_order,
+            "indent": 0 if indent is None else indent,
+            "readingOrder": 0 if reading_order is None else reading_order,
         }
 
         updates = []
@@ -937,8 +938,8 @@ class WorksheetToolkit:
         rows: IndexSelection = None,
         columns: IndexSelection = None,
         intersections_only: bool = True,
-        name: str | Unchanged = UNCHANGED,
-        size: float | Unchanged = UNCHANGED,
+        name: str | None | Unchanged = UNCHANGED,
+        size: float | None | Unchanged = UNCHANGED,
         bold: bool | None | Unchanged = UNCHANGED,
         italic: bool | None | Unchanged = UNCHANGED,
         underline: Underline | None | Unchanged = UNCHANGED,
@@ -963,9 +964,10 @@ class WorksheetToolkit:
             those columns, which is a cross rather than a block. Only considered when
             both ``rows`` and ``columns`` are given.
         name : str, optional
-            Name of the font face, such as 'Calibri'.
+            Name of the font face, such as 'Calibri'. None reverts the cell back to
+            the workbook's default face.
         size : float, optional
-            Size in points.
+            Size in points. None reverts the cell back to the workbook's default size.
         bold : bool, optional
             True draws the text in the bold weight of the face.
         italic : bool, optional

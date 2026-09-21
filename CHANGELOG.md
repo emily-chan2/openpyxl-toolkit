@@ -108,6 +108,10 @@ anyone has had.
   `unmerge_cells` take a block or a single cell; an unbounded range reaches openpyxl and
   raises there. Mixing `cells` with `rows`, `columns` or the four coordinates raises,
   naming the arguments that would have been ignored.
+- `set_alignment(indent=None)` and `set_alignment(reading_order=None)` set the value
+  back to 0 instead of raising `TypeError` from inside openpyxl. Neither has a null
+  state to be put back to, so None is translated rather than refused: the rest of the
+  class treats None as clearing the thing it names, and these two were the exception.
 - `WorksheetToolkit` raises `TypeError` if given anything other than a worksheet.
   Passing the workbook was accepted, then surfaced on the first method call as an
   `AttributeError` about a missing `cell` or `sheet_view` -- except `freeze_panes`, which

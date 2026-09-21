@@ -1,5 +1,6 @@
 """Behaviour of ``WorksheetToolkit.set_alignment``, asserted after a real round trip."""
 
+import pytest
 from openpyxl.styles import Alignment
 
 from openpyxl_toolkit import WorksheetToolkit
@@ -215,3 +216,28 @@ def test_call_with_no_keyword_arguments_changes_nothing(sheet, roundtrip):
     WorksheetToolkit(sheet).set_alignment()
 
     assert roundtrip(sheet)["A1"].alignment == original
+
+
+@pytest.mark.parametrize(
+    ("argument", "attribute", "set_to"),
+    [("indent", "indent", 3), ("reading_order", "readingOrder", 2)],
+)
+def test_none_clears_a_numeric_alignment_back_to_zero(
+    sheet, roundtrip, argument, attribute, set_to
+):
+    """Neither has a null state, so None is translated to 0 rather than rejected."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_alignment(**{argument: set_to})
+    toolkit.set_alignment(**{argument: None})
+
+    assert getattr(roundtrip(sheet)["A1"].alignment, attribute) == 0
+
+
+def test_clearing_an_indent_leaves_the_other_alignments_alone(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_alignment(horizontal="center", wrap_text=True, indent=4)
+    toolkit.set_alignment(indent=None)
+
+    alignment = roundtrip(sheet)["A1"].alignment
+
+    assert (alignment.indent, alignment.horizontal, alignment.wrapText) == (0, "center", True)

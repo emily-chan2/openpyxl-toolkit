@@ -157,3 +157,24 @@ def test_scheme_survives_a_change_to_bold_alone(sheet, roundtrip):
     WorksheetToolkit(sheet).set_font(bold=True)
 
     assert roundtrip(sheet)["A1"].font.scheme == "major"
+
+
+def test_name_none_puts_the_cell_back_on_the_default_face(sheet, roundtrip):
+    """None clears, as it does for colour: openpyxl's own default font has no name."""
+    sheet["A1"].font = Font(name="Georgia", bold=True)
+
+    WorksheetToolkit(sheet).set_font(name=None)
+
+    reloaded = roundtrip(sheet)["A1"].font
+    assert reloaded.name is None
+    assert reloaded.bold is True
+
+
+def test_size_none_puts_the_cell_back_on_the_default_size(sheet, roundtrip):
+    sheet["A1"].font = Font(sz=18, bold=True)
+
+    WorksheetToolkit(sheet).set_font(size=None)
+
+    reloaded = roundtrip(sheet)["A1"].font
+    assert reloaded.sz is None
+    assert reloaded.bold is True
