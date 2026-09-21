@@ -157,6 +157,71 @@ def test_diagonal_up_and_diagonal_down_can_coexist(sheet, roundtrip):
     assert (border.diagonalUp, border.diagonalDown) == (True, True)
 
 
+def test_a_diagonal_is_taken_away_by_a_null_style(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style=None)
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.diagonalUp, border.diagonalDown) == (False, False)
+    assert border.diagonal.style is None
+
+
+def test_taking_one_diagonal_away_leaves_the_other_drawn(sheet, roundtrip):
+    """The two share one line, so removing one must not rub out the other."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up", "diagonal_down"), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style=None)
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.diagonalUp, border.diagonalDown) == (False, True)
+    assert border.diagonal.style == "thin"
+
+
+def test_the_shared_line_goes_once_neither_diagonal_is_drawn(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up", "diagonal_down"), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up", "diagonal_down"), style=None)
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.diagonalUp, border.diagonalDown) == (False, False)
+    assert border.diagonal.style is None
+
+
+def test_naming_a_diagonal_with_no_style_draws_nothing(sheet, roundtrip):
+    """A flag with no line behind it claims a diagonal the cell does not show."""
+    WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("diagonal_up",))
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert border.diagonalUp is False
+
+
+def test_taking_a_diagonal_away_leaves_the_straight_sides_alone(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=[1], columns=[1], sides=("top", "left"), style="medium")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_down",), style="thin")
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_down",), style=None)
+
+    border = roundtrip(sheet).cell(row=1, column=1).border
+
+    assert (border.top.style, border.left.style) == ("medium", "medium")
+    assert border.diagonalDown is False
+
+
+def test_a_colour_cannot_be_given_while_taking_a_diagonal_away(sheet):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style="thin")
+
+    with pytest.raises(ValueError):
+        toolkit.set_border(
+            rows=[1], columns=[1], sides=("diagonal_up",), style=None, color="#ff0000"
+        )
+
+
 def test_an_unknown_side_name_is_rejected(sheet):
     with pytest.raises(ValueError):
         WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("lft",), style="thin")
