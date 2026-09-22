@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openpyxl-toolkit"
 dynamic = ["version"]
-description = "Chainable formatting helpers for openpyxl worksheets that merge styles instead of replacing them."
+description = "openpyxl formatting without the boilerplate."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

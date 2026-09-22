@@ -1,0 +1,158 @@
+name: Release
+
+on:
+  # Publishing to PyPI is append-only: a version can be yanked but never reused,
+  # and a file never replaced. So the trigger is the GitHub Release rather than
+  # the tag push. Pushing a tag is a reflex; publishing a release is a decision
+  # taken after reading the notes. Draft the release, read it, press Publish.
+  release:
+    types: [published]
+  # The TestPyPI dry run. Run it from the Actions tab against the tag you are
+  # about to release, before publishing the release itself.
+  workflow_dispatch:
+
+# Deny by default, as in ci.yml. Each job re-grants the one thing it needs: a
+# job-level block replaces this one rather than adding to it.
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  # Unlike CI, never cancel. A run cancelled mid-upload leaves it unclear which
+  # files reached the index, and there is no way to re-upload and find out.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    # This job runs the build backend, which is arbitrary code from pyproject.toml
+    # and its dependency tree. It gets read access to clone and nothing else -- no
+    # OIDC token, so there is nothing here worth stealing. Everything privileged
+    # happens in the publish jobs, which run no project code at all.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        # No fetch-depth: 0. The version comes from src/openpyxl_toolkit/__init__.py
+        # through [tool.hatch.version], not from git history, so a shallow clone
+        # is complete. Moving to hatch-vcs would change that.
+
+      - uses: actions/setup-python@v7
+        with:
+          # The version ci.yml treats as canonical. The wheel is py3-none-any, so
+          # this decides which Python runs hatchling, not what gets built.
+          python-version: "3.14"
+
+      # Pinned for the reason the lint and typecheck groups are pinned: a build
+      # frontend that floats can behave differently on a day nobody touched the
+      # code, and this is the job least worth surprising. The backend floor
+      # stays in pyproject.toml, where everyone building the sdist reads it.
+      - run: python -m pip install --upgrade pip
+      - run: pip install build==1.6.1
+
+      # No arguments, deliberately. build with no flags makes the sdist, unpacks
+      # it, and builds the wheel from what it unpacked, so a file missing from
+      # [tool.hatch.build.targets.sdist] fails here rather than reaching someone
+      # installing from source. hatch build would build both from the working
+      # tree and never notice.
+      - run: python -m build
+
+      # The one thing PyPI cannot undo. If the tag says v0.2.0 while the tree
+      # still says 0.1.0, this stops before anything is uploaded; without it the
+      # choice is republishing 0.1.0 by accident or burning the number. It reads
+      # the version out of the wheel about to be uploaded rather than out of the
+      # source, so it checks the artifact and not the intention.
+      - name: Check the tag against the built version
+        if: github.ref_type == 'tag'
+        # Through the environment rather than spliced into the script. A git tag
+        # may legally contain $(...), and ${{ }} pastes it in before bash reads
+        # the line; taken as a variable it is only ever a string.
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - "$TAG" <<'PY'
+          import sys
+          from pathlib import Path
+          from packaging.utils import parse_wheel_filename
+          from packaging.version import InvalidVersion, Version
+
+          tag = sys.argv[1]
+          wheels = sorted(Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              sys.exit(f"::error::expected one wheel in dist/, found {[w.name for w in wheels]}")
+          built = parse_wheel_filename(wheels[0].name)[1]
+          try:
+              wanted = Version(tag.removeprefix("v"))
+          except InvalidVersion:
+              sys.exit(f"::error::tag {tag} is not a PEP 440 version")
+          if wanted != built:
+              sys.exit(f"::error::tag {tag} asks for {wanted}, but the build produced {built}")
+          print(f"tag {tag} matches the built version {built}")
+          PY
+
+      # From v4 onward an artifact name must be unique within the run, and the
+      # artifact is immutable once written. One build job writing one name is
+      # the shape that suits.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  testpypi:
+    name: Publish to TestPyPI
+    # The dry run, and only the dry run. A release never reaches here, because
+    # TestPyPI would already hold the version that was dry-run and reject it.
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/openpyxl-toolkit
+    permissions:
+      # The whole credential. A job-level block replaces the workflow one, so
+      # this job holds the OIDC token and nothing else, not even contents:read,
+      # since it never checks the repository out.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # The v8 beside upload-artifact's v7 is not a mistake: download went a
+      # major ahead when a hash mismatch changed from a warning to an error.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # Only here. Repeating a dry run of the same version is a normal thing
+          # to want; a silently skipped upload to real PyPI is not.
+          skip-existing: true
+
+  pypi:
+    name: Publish to PyPI
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      # This name is one of the four values PyPI matches the OIDC token against:
+      # owner, repository, this file's name, and this. Change it here and the
+      # publisher on PyPI stops matching. GitHub creates the environment on
+      # first use, so a missing one will not fail the run, but an auto-created
+      # one carries no rules. Make it in Settings > Environments first to
+      # require a reviewer -- protection rules on a private repository need Pro.
+      name: pypi
+      url: https://pypi.org/p/openpyxl-toolkit
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # No user, no password, no API token: the action trades this job's OIDC
+      # token for a short-lived upload token, which is the point of the whole
+      # arrangement. It also signs the files, PEP 740 attestations being on by
+      # default under trusted publishing, so PyPI can show where they were built.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
