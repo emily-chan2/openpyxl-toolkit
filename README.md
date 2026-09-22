@@ -1,5 +1,10 @@
 # openpyxl-toolkit
 
+[![PyPI](https://img.shields.io/pypi/v/openpyxl-toolkit?style=flat-square&color=1d3557)](https://pypi.org/project/openpyxl-toolkit/)
+[![Python versions](https://img.shields.io/pypi/pyversions/openpyxl-toolkit?style=flat-square&color=1d3557)](https://pypi.org/project/openpyxl-toolkit/)
+[![CI](https://img.shields.io/github/actions/workflow/status/emily-chan2/openpyxl-toolkit/ci.yml?branch=main&style=flat-square&label=ci&color=1d3557)](https://github.com/emily-chan2/openpyxl-toolkit/actions/workflows/ci.yml)
+[![Licence](https://img.shields.io/badge/licence-MIT-1d3557?style=flat-square)](https://github.com/emily-chan2/openpyxl-toolkit/blob/main/LICENSE)
+
 Chainable formatting helpers for openpyxl worksheets that merge styles into what a
 cell already carries, rather than replacing it wholesale.
 
