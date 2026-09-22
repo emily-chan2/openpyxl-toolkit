@@ -68,11 +68,13 @@ python_version = "3.10"
 strict = true
 
 [tool.pytest.ini_options]
-# The README is in here so its examples run as doctests, output and all. The
-# docstring examples omit the value each call returns, so doctest cannot check
-# them; tests/test_examples.py runs those instead.
-testpaths = ["tests", "README.md"]
-addopts = "-q --strict-markers --doctest-glob=*.md"
+# No doctests. The README and the docstrings both write examples the way a
+# reader would type them, without the value each call hands back, so doctest
+# would compare that value against an empty expected output and fail. A README
+# that is tiring to read fails at the job it actually has.
+# tests/test_examples.py runs both sets instead.
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
 
 [tool.ruff]
 line-length = 100

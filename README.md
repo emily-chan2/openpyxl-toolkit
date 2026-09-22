@@ -3,15 +3,21 @@
 [![PyPI](https://img.shields.io/pypi/v/openpyxl-toolkit?style=flat-square&color=1d3557)](https://pypi.org/project/openpyxl-toolkit/)
 [![Python versions](https://img.shields.io/pypi/pyversions/openpyxl-toolkit?style=flat-square&color=1d3557)](https://pypi.org/project/openpyxl-toolkit/)
 [![CI](https://img.shields.io/github/actions/workflow/status/emily-chan2/openpyxl-toolkit/ci.yml?branch=main&style=flat-square&label=ci&color=1d3557)](https://github.com/emily-chan2/openpyxl-toolkit/actions/workflows/ci.yml)
-[![Licence](https://img.shields.io/badge/licence-MIT-1d3557?style=flat-square)](https://github.com/emily-chan2/openpyxl-toolkit/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-1d3557?style=flat-square)](https://github.com/emily-chan2/openpyxl-toolkit/blob/main/LICENSE)
 
-Chainable formatting helpers for openpyxl worksheets that merge styles into what a
-cell already carries, rather than replacing the whole thing.
+openpyxl formatting without the boilerplate.
 
-openpyxl stores a cell's style as one immutable object. Setting a font means
-building a whole `Font` and assigning it, which silently drops the size, the
-colour and everything else that was there. This toolkit allows you to change
-attributes one by one without having to copy previously set attributes.
+## Purpose
+
+It is our opinion that formatting and styling worksheets with openpyxl is clunky
+and non-intuitive. We wanted to build something to make the process less painful
+and the end result more readable.
+
+For example, openpyxl stores a cell's style as an immutable object. This means
+changing one attribute results in building an entirely new `Font` object and
+assigning it, which silently drops the size, the color, and anything else that
+was set. This toolkit allows you to change attributes one by one without having
+to copy previously set attributes.
 
 ```python
 >>> from openpyxl import Workbook
@@ -23,17 +29,8 @@ attributes one by one without having to copy previously set attributes.
 
 >>> toolkit = WorksheetToolkit(sheet)
 >>> toolkit.set_font(cells="A1", size=14, color="#1d3557")
-<WorksheetToolkit 'Sheet'>
->>> toolkit.set_font(cells="A1", bold=True)
-<WorksheetToolkit 'Sheet'>
-
->>> sheet["A1"].font.sz, sheet["A1"].font.bold
-(14.0, True)
-
+>>> toolkit.set_font(cells="A1", bold=True) # size and color are not discarded
 ```
-
-The second call keeps the size and the colour. Written against openpyxl directly,
-`sheet["A1"].font = Font(bold=True)` would have thrown both away.
 
 ## Install
 
@@ -49,32 +46,17 @@ Three ways, on every method that formats cells.
 
 ```python
 >>> toolkit.set_fill(cells="A1:C3", fill_type="solid", start_color="#f4f6f8")
-<WorksheetToolkit 'Sheet'>
 >>> toolkit.set_fill(cells="A:C", fill_type="solid", start_color="#f4f6f8")
-<WorksheetToolkit 'Sheet'>
 >>> toolkit.set_fill(rows=[1, 2], columns=[1, 2], intersections_only=True,
 ...                  fill_type="solid", start_color="#ffff00")
-<WorksheetToolkit 'Sheet'>
-
 ```
 
 `cells` takes a block (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`)
 or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"` is
-normalised, and an unbounded side is filled in from the used range, so `"B:B"`
+normalized, and an unbounded side is filled in from the used range, so `"B:B"`
 means column B as far as the sheet goes rather than all 1,048,576 rows.
 
-`rows` and `columns` take lists, for a selection that is computed rather than
-written out. A list, not a number:
-
-```python
->>> toolkit.set_font(rows=3, bold=True)
-Traceback (most recent call last):
-    ...
-TypeError: rows takes a list of numbers, not a single one. Write rows=[3] rather than rows=3.
-
-```
-
-Tuples, ranges, sets and generators all work.
+`rows` and `columns` take lists.
 
 Given both rows and columns, `intersections_only` decides what they mean:
 
@@ -83,11 +65,9 @@ Given both rows and columns, `intersections_only` decides what they mean:
 | `intersections_only=True` (default) | where the rows and the columns cross — a block |
 | `intersections_only=False` | every cell in those rows **and** every cell in those columns — a cross |
 
-Giving both `cells` and `rows`/`columns` raises rather than quietly picking one.
+Giving both `cells` and `rows`/`columns` raises.
 
 ## Methods
-
-Each returns the toolkit, so calls chain.
 
 | Method | What it sets |
 | --- | --- |
@@ -103,9 +83,9 @@ Each returns the toolkit, so calls chain.
 | `freeze_panes` | rows above and columns left of a cell stay visible |
 | `set_zoom_scale` | 10 to 400 |
 
-Every parameter is keyword-only, apart from `freeze_panes`, which takes its cell
-either way. Anything not named is left as it was, and `None` is not the same as
-leaving it out: `set_font(color=None)` clears the colour, while omitting `color`
+Each returns the toolkit, so calls chain. Every parameter is keyword-only, apart
+from `freeze_panes`. Anything not named is left as is. `None` is not the same as
+leaving it out: `set_font(color=None)` clears the color, while omitting `color`
 keeps whatever was there.
 
 ## Fitting columns
@@ -120,13 +100,11 @@ width = (pixels of text + 5 padding pixels) / max digit width
 
 ```python
 >>> toolkit.set_column_best_fit(ignore_rows=[1], padding=1.5, min_width=9)
-<WorksheetToolkit 'Sheet'>
-
 ```
 
-Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman, Courier
-New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is measured with
-Calibri's character widths unless `measure` is given.
+Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
+Georgia, Helvetica, Tahoma, Times New Roman, and Verdana. Any other face is
+measured with Calibri's character widths unless `measure` is given.
 
 Three items to note:
 
@@ -139,7 +117,7 @@ Three items to note:
   reader sees. Set that column's width directly, or pass `ignore_formulas=False`.
 
 A merged title in row 1 will size column A to the whole title, because a merged
-range stores its value in the top-left cell. `ignore_rows` is what to reach for.
+range stores its value in the top-left cell. Use `ignore_rows` in these cases.
 
 ## Type hints
 
@@ -156,6 +134,6 @@ move it into the editor. Elsewhere the annotations really are stricter than
 openpyxl is at runtime, which matters more than it sounds: openpyxl accepts
 `bold="no"` and stores `True`, and `name=42` and stores `"42"`.
 
-## Licence
+## License
 
 MIT.

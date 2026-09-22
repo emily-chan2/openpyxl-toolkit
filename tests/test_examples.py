@@ -1,21 +1,27 @@
-"""The examples in the docstrings have to keep working.
+"""The examples in the docstrings and the README have to keep working.
 
 They are written the way a reader would type them, without the value each call
 hands back, so doctest cannot check them: it would compare that value against an
-empty expected output. Running them is what matters. All of them were broken
-before stage 6 -- one called a bare function, one passed a colour with no
-pattern, one spelled a tuple `('diagonal_up')`, which is a string.
+empty expected output. Running them is what matters. All of the docstring ones
+were broken before stage 6 -- one called a bare function, one passed a color
+with no pattern, one spelled a tuple `('diagonal_up')`, which is a string.
 
-The README is checked by doctest instead, since the output there is the point.
+What this catches is the way examples rot: a renamed method, a changed
+signature, an argument that no longer exists, a call that now raises. What it
+cannot catch is a comment beside an example going out of date, since a comment
+is never run. Claims worth pinning belong in a test of their own.
 """
 
 import doctest
 import inspect
+from pathlib import Path
 
 import pytest
 from openpyxl import Workbook
 
 from openpyxl_toolkit import WorksheetToolkit
+
+README = Path(__file__).resolve().parent.parent / "README.md"
 
 DOCUMENTED = sorted(
     name
@@ -49,6 +55,20 @@ def test_the_examples_in_a_docstring_run(name):
     source = "".join(example.source for example in examples)
 
     exec(compile(source, f"<{name} docstring>", "exec"), namespace)
+
+
+def test_the_examples_in_the_readme_run():
+    """One script, not one per block: the README builds a sheet and then uses it."""
+    examples = doctest.DocTestParser().get_examples(README.read_text(encoding="utf-8"))
+    source = "".join(example.source for example in examples)
+
+    exec(compile(source, "<README.md>", "exec"), {})
+
+
+def test_the_readme_still_carries_examples():
+    """Nothing to run would make the test above pass without reading anything."""
+    examples = doctest.DocTestParser().get_examples(README.read_text(encoding="utf-8"))
+    assert len(examples) >= 10
 
 
 def test_the_documented_methods_are_the_ones_expected():
