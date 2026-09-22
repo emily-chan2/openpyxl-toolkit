@@ -6,11 +6,12 @@
 [![Licence](https://img.shields.io/badge/licence-MIT-1d3557?style=flat-square)](https://github.com/emily-chan2/openpyxl-toolkit/blob/main/LICENSE)
 
 Chainable formatting helpers for openpyxl worksheets that merge styles into what a
-cell already carries, rather than replacing it wholesale.
+cell already carries, rather than replacing the whole thing.
 
 openpyxl stores a cell's style as one immutable object. Setting a font means
 building a whole `Font` and assigning it, which silently drops the size, the
-colour and everything else that was there. This does not:
+colour and everything else that was there. This toolkit allows you to change
+attributes one by one without having to copy previously set attributes.
 
 ```python
 >>> from openpyxl import Workbook
@@ -102,9 +103,10 @@ Each returns the toolkit, so calls chain.
 | `freeze_panes` | rows above and columns left of a cell stay visible |
 | `set_zoom_scale` | 10 to 400 |
 
-Every parameter is keyword-only, and anything not named is left as it was. `None`
-and "leave it alone" are different: `set_font(color=None)` clears the colour,
-while omitting `color` keeps whatever was there.
+Every parameter is keyword-only, apart from `freeze_panes`, which takes its cell
+either way. Anything not named is left as it was, and `None` is not the same as
+leaving it out: `set_font(color=None)` clears the colour, while omitting `color`
+keeps whatever was there.
 
 ## Fitting columns
 
@@ -126,7 +128,7 @@ Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman, Courie
 New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is measured with
 Calibri's character widths unless `measure` is given.
 
-Three things worth knowing:
+Three items to note:
 
 - Text is assumed to be on one line. Wrapped text is not accounted for.
 - Only dates and times are rendered as Excel displays them. Other number formats,
@@ -143,14 +145,16 @@ range stores its value in the top-left cell. `ignore_rows` is what to reach for.
 
 The package ships `py.typed`. Alignment names, border styles, fill patterns and
 underline styles are `Literal` types, so an editor completes them and a checker
-catches a typo before the workbook is written:
+catches a typo before the code runs:
 
 ```
 error: Argument "horizontal" to "set_alignment" has incompatible type "Literal['centre']"
 ```
 
-They are stricter than openpyxl is at runtime, which matters more than it sounds:
-openpyxl accepts `bold="no"` and stores `True`.
+openpyxl rejects the same typo, but only once the call runs; the `Literal` types
+move it into the editor. Elsewhere the annotations really are stricter than
+openpyxl is at runtime, which matters more than it sounds: openpyxl accepts
+`bold="no"` and stores `True`, and `name=42` and stores `"42"`.
 
 ## Licence
 
