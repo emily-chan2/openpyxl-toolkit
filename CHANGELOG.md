@@ -76,12 +76,12 @@ written against that file, since it is the only version anyone has had.
   last one taking its value positionally, so `set_zoom_scale(85)` becomes
   `set_zoom_scale(zoom_scale=85)`. `freeze_panes(cell)` is not a setter and stays
   positional.
-- **Breaking:** a foreground colour with nothing to show it on is rejected rather than
-  recorded. `set_fill(start_color=...)` on a cell with no pattern used to store a colour
+- **Breaking:** a foreground color with nothing to show it on is rejected rather than
+  recorded. `set_fill(start_color=...)` on a cell with no pattern used to store a color
   that never appeared, while the identical call on an already-filled cell worked, so one
   line behaved differently depending on what was in the cell. `set_border(color=...)`
   with no style gets the same rule. The mirror case raises too: `fill_type='solid'` with
-  no colour painted the cell black, an unset foreground being ARGB `00000000`.
+  no color painted the cell black, an unset foreground being ARGB `00000000`.
   `fill_type=None` still removes a fill and trips neither check.
 - **Breaking:** an unknown border side is rejected. `sides=('lft',)` drew nothing and
   raised nothing.
@@ -138,11 +138,11 @@ written against that file, since it is the only version anyone has had.
   pane goes away -- three of them after a freeze at a cell such as `B2`. A sheet left
   with those was what made Excel offer to repair the workbook. The pane itself was
   already being cleared: the old code passed `"A1"`, which openpyxl reads as unfreeze.
-- `set_border` writes the colour through the shared normaliser. It stripped the `#`
+- `set_border` writes the color through the shared normalizer. It stripped the `#`
   itself instead, so a six-digit `'#ff0000'` reached openpyxl with no alpha byte and was
   stored as ARGB `00ff0000`, where the same input through `set_font` stored `FFff0000`:
-  one colour, two values in the same file. `set_outside_border` goes through `set_border`
-  and was fixed with it. Every colour the toolkit writes is now upper-cased as well, so
+  one color, two values in the same file. `set_outside_border` goes through `set_border`
+  and was fixed with it. Every color the toolkit writes is now upper-cased as well, so
   the same input gives the same bytes whichever setter wrote it.
 - `set_border` no longer rewrites both diagonal flags on a call touching either, so
   adding `diagonal_down` leaves an existing `diagonal_up` on, and `style=None` on a
@@ -151,13 +151,13 @@ written against that file, since it is the only version anyone has had.
   other still drawing that line, and the line goes only once neither is drawn. Naming a
   diagonal with no style no longer raises the flag on a cell that draws nothing.
 - `set_fill` no longer raises `TypeError` on a cell whose existing fill uses a theme,
-  indexed or automatic colour. Reading `.rgb` off such a colour returns openpyxl's
+  indexed or automatic color. Reading `.rgb` off such a color returns openpyxl's
   descriptor rather than a string, so the `Color` itself is used instead -- copied, not
   shared, since a `Color` is stored by reference and sharing one lets a later mutation
   repaint every cell that inherited it.
 - `set_fill` no longer raises `AttributeError` on a cell carrying a `GradientFill`. A
   call that asks for no change leaves the gradient alone, one naming both a `fill_type`
-  and a colour replaces it, and `fill_type=None` clears it. A colour or a pattern on its
+  and a color replaces it, and `fill_type=None` clears it. A color or a pattern on its
   own raises `ValueError`, a gradient having neither to supply the half left out.
 - `set_fill` and `set_border` build every style object before assigning any of them, so
   a failure part-way through a range no longer leaves the worksheet half-formatted.
@@ -182,10 +182,10 @@ written against that file, since it is the only version anyone has had.
   wiping a width set deliberately beforehand.
 - Widths and heights are held to Excel's own maximums of 255 and 409. A long enough
   value sized a column past what Excel accepts.
-- `set_font(color=None)` clears the font colour instead of raising `AttributeError`.
+- `set_font(color=None)` clears the font color instead of raising `AttributeError`.
   Omitting an argument is how to leave a value alone; `None` is a value in its own right
-  and clears the thing it names. `set_fill` rejects a `None` colour with `ValueError`,
-  because a pattern fill has no colourless state -- pass `fill_type=None` to remove the
+  and clears the thing it names. `set_fill` rejects a `None` color with `ValueError`,
+  because a pattern fill has no colorless state -- pass `fill_type=None` to remove the
   fill instead.
 - Naming rows and columns with `intersections_only=False` no longer formats rows nobody
   asked for. The sheet bounds are read once before the sweep; `ws.cell()` creates a cell

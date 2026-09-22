@@ -47,7 +47,7 @@ body:
     attributes:
       label: Where did the workbook come from?
       description: >-
-        A file written by Excel carries theme and indexed colours that a fresh
+        A file written by Excel carries theme and indexed colors that a fresh
         Workbook() never has, and those have caused more crashes here than anything
         else.
       options:

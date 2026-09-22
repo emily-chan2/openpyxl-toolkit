@@ -1,4 +1,4 @@
-"""Reading and writing the hex colours the toolkit accepts."""
+"""Reading and writing the hex colors the toolkit accepts."""
 
 from __future__ import annotations
 
@@ -10,17 +10,17 @@ from ._sentinel import UNCHANGED, Unchanged
 
 
 def has_color(value: Color | str | None) -> bool:
-    """True when a colour carries something the user chose.
+    """True when a color carries something the user chose.
 
-    A cell that was never coloured reports the ARGB default rather than nothing,
-    so an absent colour and an explicit one are only distinguishable by value.
+    A cell that was never colored reports the ARGB default rather than nothing,
+    so an absent color and an explicit one are only distinguishable by value.
     """
     if value is None:
         return False
     if isinstance(value, str):
         return value.upper() not in ("", "00000000")
     if getattr(value, "type", None) != "rgb":
-        return True  # a theme, indexed or automatic colour is a real choice
+        return True  # a theme, indexed or automatic color is a real choice
     return (value.rgb or "").upper() not in ("", "00000000")
 
 
@@ -37,7 +37,7 @@ def normalize_color(color: str | None | Unchanged) -> str | None | Unchanged:
     if color is UNCHANGED:
         return UNCHANGED
     if color is None:
-        # None clears the colour; UNCHANGED is how "leave it alone" is spelled.
+        # None clears the color; UNCHANGED is how "leave it alone" is spelled.
         return None
     hex_color = color.lstrip("#").upper()
     if len(hex_color) == 6:

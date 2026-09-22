@@ -56,7 +56,7 @@ around them can turn the run red. `mypy` reads a relative path out of
 
 ## Tests
 
-Every behavioural test saves a real `.xlsx` and loads it back, through the
+Every behavioral test saves a real `.xlsx` and loads it back, through the
 `roundtrip` fixture. A style that is right in memory and wrong in the file is the
 failure this library exists to prevent, so an assertion against the in-memory cell
 does not count for much.

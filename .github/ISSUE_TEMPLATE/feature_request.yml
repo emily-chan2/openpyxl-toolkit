@@ -49,7 +49,7 @@ body:
         - "A new argument on a method that already exists"
         - "A new way of formatting cells, rows or columns"
         - "Column widths: a font measured wrongly, or a format measured as stored"
-        - "Sheet-level: gridlines, tab colour, autofilter, print setup"
+        - "Sheet-level: gridlines, tab color, autofilter, print setup"
         - "Workbook-level: charts, data validation, conditional formatting, named styles"
         - "Writing values or building the sheet, rather than formatting it"
         - "Relaxing a rule that currently raises"

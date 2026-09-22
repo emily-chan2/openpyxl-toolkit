@@ -1,7 +1,7 @@
 """The WorksheetToolkit class.
 
 Each method formats part of one worksheet and returns the toolkit, so calls can be
-chained. Picking cells, reading colours and measuring text are handled by the
+chained. Picking cells, reading colors and measuring text are handled by the
 private modules alongside this one.
 """
 
@@ -334,7 +334,7 @@ class WorksheetToolkit:
     ) -> WorksheetToolkit:
         """Set the border on one or more sides of each cell.
 
-        Sides that are not named keep the border they had. A colour on its own cannot
+        Sides that are not named keep the border they had. A color on its own cannot
         be applied to a side with no line.
 
         Parameters
@@ -374,7 +374,7 @@ class WorksheetToolkit:
             If ``rows`` or ``columns`` is given a single number rather than a
             list, or an index that is not an integer.
         ValueError
-            If a side is not one of the six names, if a colour is given for a side
+            If a side is not one of the six names, if a color is given for a side
             with no line and no ``style`` to draw one, if both ``cells`` and
             ``rows`` or ``columns`` are given, or if an index falls outside
             Excel's grid.
@@ -382,7 +382,7 @@ class WorksheetToolkit:
         Notes
         -----
         A cell stores one diagonal line and a flag for each direction, so the two
-        diagonals cannot carry different styles or colours: styling one while the
+        diagonals cannot carry different styles or colors: styling one while the
         other is drawn restyles both. Taking one away leaves the other as it was.
 
         Examples
@@ -422,7 +422,7 @@ class WorksheetToolkit:
                     )
                     if color is not UNCHANGED and new_style is None:
                         raise ValueError(
-                            f"{cell.coordinate} has no {side_name} border, so a colour on its "
+                            f"{cell.coordinate} has no {side_name} border, so a color on its "
                             f"own would not show. Pass style='thin' as well."
                         )
                     straight[side_name] = Side(
@@ -439,7 +439,7 @@ class WorksheetToolkit:
                 new_style = style if style is not UNCHANGED else current.diagonal.style
                 if color is not UNCHANGED and new_style is None:
                     raise ValueError(
-                        f"{cell.coordinate} has no diagonal border, so a colour on its own "
+                        f"{cell.coordinate} has no diagonal border, so a color on its own "
                         f"would not show. Pass style='thin' as well."
                     )
                 # A cell holds one diagonal line and a flag per direction, so a
@@ -800,7 +800,7 @@ class WorksheetToolkit:
     ) -> WorksheetToolkit:
         """Set the background fill of cells.
 
-        A fill has two parts: a pattern and the colours it is drawn in. A colour with
+        A fill has two parts: a pattern and the colors it is drawn in. A color with
         no pattern has nothing to show through, so a cell with no fill yet needs both.
 
         Parameters
@@ -822,7 +822,7 @@ class WorksheetToolkit:
             The pattern. 'solid' is the common one; the rest are hatches and shades
             such as 'gray125', 'lightGrid' and 'darkTrellis'. None removes the fill.
         start_color : str, optional
-            Hex color code for the foreground. For a solid fill this is the colour
+            Hex color code for the foreground. For a solid fill this is the color
             that shows.
         end_color : str, optional
             Hex color code for the background, which only a patterned fill draws.
@@ -838,21 +838,21 @@ class WorksheetToolkit:
             If ``rows`` or ``columns`` is given a single number rather than a
             list, or an index that is not an integer.
         ValueError
-            If a colour is given as None, which cannot clear a fill that always
-            carries one; if a colour is given for a cell with no pattern and no
+            If a color is given as None, which cannot clear a fill that always
+            carries one; if a color is given for a cell with no pattern and no
             ``fill_type`` to make one; if a ``fill_type`` is given for a cell
-            with no colour, which would paint it black; if both ``cells`` and
+            with no color, which would paint it black; if both ``cells`` and
             ``rows`` or ``columns`` are given; or if an index falls outside
             Excel's grid.
 
         Examples
         --------
-        A colour needs a pattern to show through, so a cell with no fill yet takes
+        A color needs a pattern to show through, so a cell with no fill yet takes
         both:
 
         >>> toolkit.set_fill(rows=[1], fill_type='solid', start_color='#f4d2d3')
 
-        Once a cell has a pattern, the colour can be changed on its own:
+        Once a cell has a pattern, the color can be changed on its own:
 
         >>> toolkit.set_fill(rows=[1], start_color='#ffff00')
 
@@ -864,11 +864,11 @@ class WorksheetToolkit:
         ... )
         """
         if start_color is None or end_color is None:
-            # A pattern fill has no colourless state: its default foreground is an
+            # A pattern fill has no colorless state: its default foreground is an
             # opaque black, so None here would repaint rather than clear.
             raise ValueError(
-                "set_fill cannot clear a colour on its own -- a pattern fill always carries "
-                "one. Pass fill_type=None to remove the fill, or give an explicit hex colour."
+                "set_fill cannot clear a color on its own -- a pattern fill always carries "
+                "one. Pass fill_type=None to remove the fill, or give an explicit hex color."
             )
 
         requested = any(arg is not UNCHANGED for arg in (fill_type, start_color, end_color))
@@ -893,7 +893,7 @@ class WorksheetToolkit:
                 # flattening it into a blank pattern fill.
                 continue
             else:
-                # A GradientFill has no pattern or start/end colour to merge with,
+                # A GradientFill has no pattern or start/end color to merge with,
                 # so anything left unspecified falls back to PatternFill's default.
                 current_type = current_start = current_end = None
 
@@ -902,12 +902,12 @@ class WorksheetToolkit:
 
             if start_color is not UNCHANGED and new_type is None:
                 raise ValueError(
-                    f"{cell.coordinate} has no fill pattern, so a colour on its own would "
+                    f"{cell.coordinate} has no fill pattern, so a color on its own would "
                     f"not show. Pass fill_type='solid' as well."
                 )
             if fill_type not in (UNCHANGED, None) and not has_color(new_start):
                 raise ValueError(
-                    f"{cell.coordinate} has no fill colour, so fill_type={fill_type!r} alone "
+                    f"{cell.coordinate} has no fill color, so fill_type={fill_type!r} alone "
                     f"would paint it black. Pass start_color as well."
                 )
 
@@ -917,7 +917,7 @@ class WorksheetToolkit:
                     PatternFill(
                         fill_type=new_type,
                         # The Color object is passed through rather than its .rgb:
-                        # for a theme, indexed or automatic colour that attribute is
+                        # for a theme, indexed or automatic color that attribute is
                         # the descriptor itself, which PatternFill rejects.
                         start_color=new_start,
                         end_color=current_end
@@ -978,7 +978,7 @@ class WorksheetToolkit:
         strike : bool, optional
             True draws a line through the text.
         color : str, optional
-            Hex color code, such as '#f4d2d3'. None clears the colour.
+            Hex color code, such as '#f4d2d3'. None clears the color.
 
         Returns
         -------

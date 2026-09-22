@@ -12,7 +12,7 @@ EXCEL_MAX_COLUMN_WIDTH = 255
 
 
 # --------------------------------------------------------------------------
-# Characterisation: behaviour that is currently correct and must stay correct
+# Characterisation: behavior that is currently correct and must stay correct
 # --------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-"""Behaviour of WorksheetToolkit.set_font, asserted after a real save/reload cycle."""
+"""Behavior of WorksheetToolkit.set_font, asserted after a real save/reload cycle."""
 
 from copy import copy
 
@@ -62,7 +62,7 @@ def test_a_later_call_keeps_attributes_set_by_an_earlier_one(sheet, roundtrip):
     assert (font.bold, font.size, font.name, font.italic) == (True, 14, "Georgia", True)
 
 
-def test_a_later_call_keeps_a_colour_set_by_an_earlier_one(sheet, roundtrip):
+def test_a_later_call_keeps_a_color_set_by_an_earlier_one(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_font(color="#00FF00")
     toolkit.set_font(bold=True)
@@ -116,12 +116,12 @@ def test_set_font_returns_the_toolkit_for_chaining(sheet):
     assert toolkit.set_font(bold=True) is toolkit
 
 
-def test_lowercase_hex_colour_is_stored_as_upper_case_argb(sheet, roundtrip):
+def test_lowercase_hex_color_is_stored_as_upper_case_argb(sheet, roundtrip):
     WorksheetToolkit(sheet).set_font(color="#ff0000")
     assert roundtrip(sheet)["A1"].font.color.rgb == "FFFF0000"
 
 
-def test_colour_none_clears_a_previously_set_colour(sheet, roundtrip):
+def test_color_none_clears_a_previously_set_color(sheet, roundtrip):
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_font(color="#FF0000")
     toolkit.set_font(color=None)
@@ -160,7 +160,7 @@ def test_scheme_survives_a_change_to_bold_alone(sheet, roundtrip):
 
 
 def test_name_none_puts_the_cell_back_on_the_default_face(sheet, roundtrip):
-    """None clears, as it does for colour: openpyxl's own default font has no name."""
+    """None clears, as it does for color: openpyxl's own default font has no name."""
     sheet["A1"].font = Font(name="Georgia", bold=True)
 
     WorksheetToolkit(sheet).set_font(name=None)

@@ -1,4 +1,4 @@
-"""Behaviour of ``WorksheetToolkit.set_alignment``, asserted after a real round trip."""
+"""Behavior of ``WorksheetToolkit.set_alignment``, asserted after a real round trip."""
 
 import pytest
 from openpyxl.styles import Alignment

@@ -1,4 +1,4 @@
-"""Behaviour of ``set_border`` and ``set_outside_border``.
+"""Behavior of ``set_border`` and ``set_outside_border``.
 
 Everything is asserted on the reloaded worksheet: a border that only exists in
 memory is not a border.
@@ -37,7 +37,7 @@ def test_a_later_call_on_another_side_preserves_the_earlier_side(sheet, roundtri
     assert (border.top.style, border.left.style) == ("thin", "thick")
 
 
-def test_recolouring_a_side_leaves_its_style_intact(sheet, roundtrip):
+def test_recoloring_a_side_leaves_its_style_intact(sheet, roundtrip):
     """Passing only ``color`` must not drop the style set by an earlier call."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="medium")
@@ -100,7 +100,7 @@ def test_outside_border_leaves_the_inward_sides_of_an_edge_cell_clear(sheet, rou
     assert inward == (None, None, None)
 
 
-def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip):
+def test_border_color_persists_as_the_same_argb_as_font_color(sheet, roundtrip):
     """The same hex handed to two methods must round trip to one ARGB string."""
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_border(rows=[1], columns=[1], sides=("top",), style="thin", color="#ff0000")
@@ -114,13 +114,13 @@ def test_border_colour_persists_as_the_same_argb_as_font_colour(sheet, roundtrip
     )
 
 
-def test_a_colour_with_no_style_is_rejected(sheet):
-    """A side with no style draws nothing, so a colour alone cannot show."""
+def test_a_color_with_no_style_is_rejected(sheet):
+    """A side with no style draws nothing, so a color alone cannot show."""
     with pytest.raises(ValueError, match="style='thin'"):
         WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), color="#ff0000")
 
 
-def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roundtrip):
+def test_a_color_with_no_style_is_fine_when_the_side_already_exists(sheet, roundtrip):
     sheet.cell(row=1, column=1, value="x").border = Border(top=Side(style="thin"))
 
     WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), color="#ff0000")
@@ -129,8 +129,8 @@ def test_a_colour_with_no_style_is_fine_when_the_side_already_exists(sheet, roun
     assert top.style == "thin" and top.color.rgb.lower().endswith("ff0000")
 
 
-def test_a_style_with_no_colour_is_allowed(sheet, roundtrip):
-    """An uncoloured border is drawn in Excel's automatic colour, which is wanted."""
+def test_a_style_with_no_color_is_allowed(sheet, roundtrip):
+    """An uncolored border is drawn in Excel's automatic color, which is wanted."""
     WorksheetToolkit(sheet).set_border(rows=[1], columns=[1], sides=("top",), style="thin")
 
     assert roundtrip(sheet).cell(row=1, column=1).border.top.style == "thin"
@@ -212,7 +212,7 @@ def test_taking_a_diagonal_away_leaves_the_straight_sides_alone(sheet, roundtrip
     assert border.diagonalDown is False
 
 
-def test_a_colour_cannot_be_given_while_taking_a_diagonal_away(sheet):
+def test_a_color_cannot_be_given_while_taking_a_diagonal_away(sheet):
     toolkit = WorksheetToolkit(sheet)
     toolkit.set_border(rows=[1], columns=[1], sides=("diagonal_up",), style="thin")
 

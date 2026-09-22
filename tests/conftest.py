@@ -1,6 +1,6 @@
 """Shared fixtures.
 
-Every behavioural test in this suite goes through ``roundtrip``: the only failure
+Every behavioral test in this suite goes through ``roundtrip``: the only failure
 mode that matters for this library is a style that looks right in memory and does
 not survive being written to a real .xlsx file.
 """
