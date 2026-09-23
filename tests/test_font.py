@@ -159,6 +159,26 @@ def test_scheme_survives_a_change_to_bold_alone(sheet, roundtrip):
     assert roundtrip(sheet)["A1"].font.scheme == "major"
 
 
+def test_openpyxl_discards_what_a_new_font_does_not_mention(sheet, roundtrip):
+    """The premise this class exists for, and what the README claims about it.
+
+    If openpyxl ever starts merging, the merge here stops being the difference
+    the README says it is and this test is the thing that notices.
+    """
+    sheet["A1"].font = Font(sz=14, color="FF1D3557")
+    sheet["A1"].font = Font(bold=True)
+
+    bare = sheet["A1"].font
+    assert (bare.sz, bare.color) == (None, None)
+
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_font(size=14, color="#1d3557")
+    toolkit.set_font(bold=True)
+
+    merged = roundtrip(sheet)["A1"].font
+    assert (merged.sz, merged.color.rgb, merged.b) == (14.0, "FF1D3557", True)
+
+
 def test_name_none_puts_the_cell_back_on_the_default_face(sheet, roundtrip):
     """None clears, as it does for color: openpyxl's own default font has no name."""
     sheet["A1"].font = Font(name="Georgia", bold=True)

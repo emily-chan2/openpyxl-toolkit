@@ -15,19 +15,39 @@ and the end result more readable.
 
 For example, openpyxl stores a cell's style as an immutable object. This means
 changing one attribute results in building an entirely new `Font` object and
-assigning it, which silently drops the size, the color, and anything else that
-was set. This toolkit allows you to change attributes one by one without having
-to copy previously set attributes.
+assigning it, which drops the size, the color, and anything else that was set:
 
 ```python
+>>> from copy import copy
 >>> from openpyxl import Workbook
+>>> from openpyxl.styles import Font
+
+>>> wb = Workbook()
+>>> ws = wb.active
+>>> ws["A1"] = "My cell text"
+
+>>> ws["A1"].font = Font(size=14, color="FF1D3557") # openpyxl wants ARGB
+>>> ws["A1"].font = Font(bold=True) # the size and the color are now gone
+```
+
+If you try `ws["A1"].font.bold = True`, you get `Style objects are immutable and
+cannot be changed. Reassign the style with a copy`. So if you wanted to modify
+just one part of a font, you would have to make a copy, modify it, and assign
+it:
+
+```python
+>>> font = copy(ws["A1"].font)
+>>> font.bold = True
+>>> ws["A1"].font = font
+```
+
+This toolkit allows you to change attributes one by one without having to copy
+previously set attributes.
+
+```python
 >>> from openpyxl_toolkit import WorksheetToolkit
 
->>> workbook = Workbook()
->>> sheet = workbook.active
->>> sheet["A1"] = "Region"
-
->>> toolkit = WorksheetToolkit(sheet)
+>>> toolkit = WorksheetToolkit(ws)
 >>> toolkit.set_font(cells="A1", size=14, color="#1d3557")
 >>> toolkit.set_font(cells="A1", bold=True) # size and color are not discarded
 ```
