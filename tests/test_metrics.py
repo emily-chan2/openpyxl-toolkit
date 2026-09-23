@@ -9,16 +9,22 @@ from openpyxl_toolkit import _metrics
 NEVER_A_FONT = "No Such Face"
 
 BUILT_IN = [
-    "calibri",
     "aptos",
     "arial",
-    "times new roman",
-    "courier new",
+    "calibri",
     "cambria",
-    "verdana",
-    "georgia",
-    "tahoma",
+    "courier new",
     "futura",
+    "garamond",
+    "georgia",
+    "inter",
+    "open sans",
+    "palatino",
+    "roboto",
+    "segoe ui",
+    "tahoma",
+    "times new roman",
+    "verdana",
 ]
 
 
@@ -43,6 +49,16 @@ def test_calibri_max_digit_width_matches_the_documented_value():
 def test_helvetica_and_arial_share_a_table():
     """Arial was drawn to Helvetica's advances; one table serves both."""
     assert _metrics.widths_for("helvetica")[0] is _metrics.widths_for("arial")[0]
+
+
+def test_book_antiqua_and_palatino_share_a_table():
+    """Book Antiqua is Monotype's clone of Palatino, advance for advance."""
+    assert _metrics.widths_for("book antiqua")[0] is _metrics.widths_for("palatino")[0]
+
+
+def test_selawik_and_segoe_ui_share_a_table():
+    """Segoe UI is measured through Selawik, so asking for either gives one table."""
+    assert _metrics.widths_for("selawik")[0] is _metrics.widths_for("segoe ui")[0]
 
 
 def test_font_names_are_matched_case_and_space_insensitively():

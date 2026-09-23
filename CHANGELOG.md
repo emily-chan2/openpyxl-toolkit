@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same way every other method does. A letter is read in either case and with
   surrounding whitespace, since neither can mean anything else; a cell reference such as
   `'C1'` raises rather than being read as its column.
+- Six more faces in the built-in metrics for `set_column_best_fit`: Garamond, Inter,
+  Open Sans, Palatino, Roboto and Segoe UI. Book Antiqua and Selawik are recognized as
+  well, sharing the table of the face each matches. Sixteen faces are now measured
+  exactly and twenty-seven names resolve to one of them; anything else still falls back
+  to Verdana.
+- Segoe UI is measured through Selawik, Microsoft's own openly licensed substitute for
+  it, rather than from the proprietary file. The match was checked rather than taken on
+  trust: all 188 characters Selawik carries have the advance Segoe UI gives them. Book
+  Antiqua was checked the same way against Palatino, and shares every advance.
 
 ### Changed
 
