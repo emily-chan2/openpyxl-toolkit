@@ -11,8 +11,10 @@ exists that matches a proprietary one advance-for-advance, that is what was
 measured; the rest were read from the font files on the machine that generated the
 table. Either way what is stored is a table of widths, not any part of a font.
 
-A face with no table falls back to the default one, and ``widths_for`` reports
-whether that happened so the fallback need not be silent.
+A face with no table falls back to another, and ``widths_for`` reports whether
+that happened so the fallback need not be silent. Which face it falls back to
+depends on what is being measured, and the two are not the same: see the note
+above ``UNKNOWN_FONT_NAME``.
 
 Two details are easy to get wrong and both are load-bearing:
 
@@ -32,7 +34,18 @@ from typing import Final
 
 from ._font_widths import ALIASES, FONT_WIDTHS
 
+# Excel's own default, and so the face the width unit is defined in when a workbook
+# names none. This is a statement of fact about Excel, not a choice: widening it
+# would widen the unit and make every measurement smaller.
 DEFAULT_FONT_NAME: Final = "calibri"
+
+# A named face with no table of its own is measured with this one. The widest table
+# is used deliberately. The two errors are not equally bad -- a column measured too
+# narrow hides what it holds, while one measured too wide only looks untidy -- so an
+# unknown face is given the benefit of the doubt. Calibri is the narrowest of the
+# ten and under-measures every other one, which makes it the worst choice here even
+# though it is the right one above.
+UNKNOWN_FONT_NAME: Final = "verdana"
 
 # Excel adds two pixels of padding either side of the text plus one for the
 # gridline, and that total is part of its own width formula.
@@ -41,18 +54,25 @@ CELL_PADDING_PIXELS: Final = 5
 PIXELS_PER_POINT: Final = 96 / 72
 
 
-def widths_for(font_name: str | None) -> tuple[Mapping[str, float], bool]:
-    """Advance widths for ``font_name``, falling back to the default face.
+def widths_for(
+    font_name: str | None, fallback: str = UNKNOWN_FONT_NAME
+) -> tuple[Mapping[str, float], bool]:
+    """Advance widths for ``font_name``, falling back to ``fallback``.
 
     Returns ``(widths, matched)``. ``matched`` is False when the font is one we
     have no table for, which callers may want to report rather than silently
-    measure Arial as if it were Calibri.
+    measure Segoe UI as if it were Verdana.
+
+    No name at all is not an unknown face: it means the workbook named none, so
+    Excel's default applies and the fallback does not come into it.
     """
-    key = (font_name or DEFAULT_FONT_NAME).strip().lower()
+    if font_name is None:
+        return FONT_WIDTHS[DEFAULT_FONT_NAME], True
+    key = font_name.strip().lower()
     key = ALIASES.get(key, key)
     table = FONT_WIDTHS.get(key)
     if table is None:
-        return FONT_WIDTHS[DEFAULT_FONT_NAME], False
+        return FONT_WIDTHS[fallback], False
     return table, True
 
 
@@ -93,7 +113,13 @@ def column_width(
     if base_point_size is None:
         base_point_size = point_size
     text_widths, _ = widths_for(font_name)
-    base_widths, _ = widths_for(base_font_name if base_font_name is not None else font_name)
+    # The unit falls back to Excel's default rather than to the wide face. Widening
+    # the unit divides by more and hands back a narrower column, which is the
+    # opposite of what the wide fallback is for.
+    base_widths, _ = widths_for(
+        base_font_name if base_font_name is not None else font_name,
+        fallback=DEFAULT_FONT_NAME,
+    )
     return (text_pixels(text, point_size, text_widths) + CELL_PADDING_PIXELS) / max_digit_pixels(
         base_point_size, base_widths
     )

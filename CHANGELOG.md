@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   surrounding whitespace, since neither can mean anything else; a cell reference such as
   `'C1'` raises rather than being read as its column.
 
+### Changed
+
+- **Breaking:** `set_column_best_fit` measures a face it has no metrics for with Verdana's
+  character widths rather than Calibri's. Calibri is the narrowest table there is and
+  under-measured every other one, which made an unknown face the case most likely to be cut
+  off; Verdana is the widest. The two errors are not equally bad -- a column measured too
+  narrow hides what it holds, while one measured too wide only looks untidy -- so an
+  unmeasurable face now errs wide. A column of such text comes out about a quarter wider
+  than before. Faces with metrics are unaffected, as are `min_width` and `measure`.
+- The face defining the width unit stays Calibri, and is now a separate constant from the
+  one an unknown face falls back to. Excel's unit is one widest-digit of the workbook's
+  normal font, so widening it divides by more and hands back a narrower column. A workbook
+  whose normal font has no metrics would otherwise have been measured about a fifth
+  narrower by the change above, rather than wider.
+
 ## [0.1.0] - 2026-09-22
 
 The first release. Until now the project was one file, `worksheet_toolkit.py`, sitting

@@ -48,10 +48,52 @@ def test_font_names_are_matched_case_and_space_insensitively():
         assert widths is _metrics.widths_for("times new roman")[0]
 
 
-def test_an_unknown_font_falls_back_and_says_so():
+def test_an_unknown_font_falls_back_to_the_wide_face_and_says_so():
     widths, matched = _metrics.widths_for("Comic Sans MS")
     assert not matched
+    assert widths is _metrics.widths_for("verdana")[0]
+
+
+def test_no_font_named_is_not_an_unknown_font():
+    """None means the workbook named none, so Excel's default applies instead."""
+    widths, matched = _metrics.widths_for(None)
+    assert matched
     assert widths is _metrics.widths_for("calibri")[0]
+
+
+def test_the_fallback_face_is_the_widest_table_there_is():
+    """Only sound while it holds. A wider table added later should prompt a rethink."""
+    mean = {
+        font: sum(_metrics.widths_for(font)[0].values()) / len(_metrics.widths_for(font)[0])
+        for font in BUILT_IN
+    }
+
+    assert max(mean, key=lambda font: mean[font]) == _metrics.UNKNOWN_FONT_NAME
+
+
+def test_an_unknown_text_font_is_measured_wider_than_calibri_would_be():
+    """Too narrow hides what a column holds; too wide only looks untidy."""
+    unknown = _metrics.column_width("Representative", 11, 11, "Segoe UI", "Calibri")
+    as_calibri = _metrics.column_width("Representative", 11, 11, "Calibri", "Calibri")
+
+    assert unknown > as_calibri
+
+
+def test_an_unknown_unit_font_does_not_narrow_the_column():
+    """The unit falls back to Calibri, not to the wide face.
+
+    A wider unit divides by more and hands back a narrower column, so using the
+    fallback here would undo what it is for.
+    """
+    unknown_unit = _metrics.column_width("Representative", 11, 11, "Georgia", "Segoe UI")
+    calibri_unit = _metrics.column_width("Representative", 11, 11, "Georgia", "Calibri")
+
+    assert unknown_unit == calibri_unit
+
+
+def test_every_built_in_font_matches_its_own_table():
+    """A built-in that stopped matching would be measured as Verdana without a word."""
+    assert [font for font in BUILT_IN if not _metrics.widths_for(font)[1]] == []
 
 
 def test_courier_new_is_monospaced():
