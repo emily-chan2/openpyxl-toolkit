@@ -211,3 +211,9 @@ __marimo__/
 
 # Output from examples/
 examples/*.xlsx
+
+# Font files supplied for tools/generate_font_metrics.py. Only the advance widths
+# it extracts are committed, never the font itself.
+*.ttf
+*.ttc
+*.otf

@@ -119,10 +119,15 @@ width = (pixels of text + 5 padding pixels) / max digit width
 ```
 
 Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
-Georgia, Helvetica, Tahoma, Times New Roman, and Verdana. Any other face is
-measured with Verdana's character widths unless `measure` is given. Verdana is
-the widest of them, so a face with no metrics errs wide: a column that is too
-narrow hides what it holds, while one that is too wide only looks untidy.
+Garamond, Georgia, Inter, Open Sans, Palatino, Roboto, Segoe UI, Tahoma, Times
+New Roman and Verdana. Helvetica, Book Antiqua, Selawik, Arimo, Carlito, Tinos,
+Cousine, Caladea and the Liberation faces are recognized too, each sharing the
+table of the face it matches advance for advance.
+
+Any other face is measured with Verdana's character widths unless `measure` is
+given. Verdana is the widest of them, so a face with no metrics errs wide: a
+column that is too narrow hides what it holds, while one that is too wide only
+looks untidy.
 
 Three items to note:
 

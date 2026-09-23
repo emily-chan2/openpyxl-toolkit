@@ -3,7 +3,12 @@
 Not part of the package. Run it when adding a font or refreshing the tables:
 
     pip install fonttools
-    python tools/generate_font_metrics.py
+    python tools/generate_font_metrics.py <directory of open font files>
+    ruff format src/openpyxl_toolkit/_font_widths.py
+
+The formatting step is not optional. Widths are written out as reprs, which come
+out single quoted, and the committed table is double quoted like the rest of the
+source; skipping it leaves the lint job red.
 
 Widths are stored as a fraction of the em, which makes them independent of point
 size. Where an openly licensed font exists that was drawn to match a Microsoft
@@ -21,15 +26,32 @@ try:
 except ImportError:
     sys.exit("fonttools is needed to regenerate the tables: pip install fonttools")
 
-# Faces measured from openly licensed fonts drawn to match a proprietary one
-# advance-for-advance. Filename is relative to the directory passed on the command
-# line; download them from github.com/google/fonts.
+# Faces measured from an openly licensed file. Two kinds live here: a face that is
+# itself open, measured as what it is, and an open font drawn to match a proprietary
+# one advance-for-advance, measured in place of the face it substitutes for. Which is
+# which is said in each note. Filename is relative to the directory passed on the
+# command line; all but Selawik are on github.com/google/fonts, and Selawik is a
+# release asset of github.com/microsoft/Selawik.
+#
+# The variable fonts are read at their default instance, which for all three is
+# wght=400 wdth=100, the regular weight. A different default would need instancing
+# before the advances meant anything.
 OPEN_SOURCES = {
     "calibri": ("Carlito-Regular.ttf", "Carlito, metrically identical to Calibri (OFL)"),
     "arial": ("Arimo.ttf", "Arimo, metrically identical to Arial and Helvetica (OFL)"),
     "times new roman": ("Tinos.ttf", "Tinos, metrically identical to Times New Roman (OFL)"),
     "courier new": ("Cousine.ttf", "Cousine, metrically identical to Courier New (OFL)"),
     "cambria": ("Caladea.ttf", "Caladea, metrically identical to Cambria (OFL)"),
+    # Checked against segoeui.ttf rather than taken on trust: all 188 characters
+    # Selawik carries have the same advance. The three it does not carry are a
+    # no-break space and the two ordinal indicators.
+    "segoe ui": (
+        "Selawik.ttf",
+        "Selawik, Microsoft's own metrically compatible substitute for Segoe UI (OFL)",
+    ),
+    "roboto": ("Roboto.ttf", "Roboto itself, variable, default instance (Apache 2.0)"),
+    "open sans": ("OpenSans.ttf", "Open Sans itself, variable, default instance (OFL)"),
+    "inter": ("Inter.ttf", "Inter itself, variable, default instance (OFL)"),
 }
 
 # Faces with no open equivalent, measured from the font files installed on the
@@ -62,10 +84,25 @@ SYSTEM_SOURCES = {
         "Futura Medium",
         "Futura Medium, macOS's regular weight of Futura",
     ),
+    "palatino": (
+        "/System/Library/Fonts/Palatino.ttc",
+        "Palatino",
+        "Palatino, from macOS; Book Antiqua shares its advances exactly",
+    ),
+    # Not installed anywhere standard on the machine that generated this. Put the
+    # file at the repository root before regenerating; .gitignore keeps it out of
+    # the history, since it is a licensed font rather than a table of numbers.
+    "garamond": (
+        "Garamond.ttc",
+        "Garamond",
+        "Garamond, from a font file supplied at the repository root",
+    ),
 }
 
 # faces that share another face's advances exactly
 ALIASES = {
+    "book antiqua": "palatino",
+    "selawik": "segoe ui",
     "helvetica": "arial",
     "liberation sans": "arial",
     "arimo": "arial",
@@ -119,14 +156,23 @@ def main(font_dir):
     wanted = [(name, font_dir / f, None, note) for name, (f, note) in OPEN_SOURCES.items()]
     wanted += [(name, Path(p), face, note) for name, (p, face, note) in SYSTEM_SOURCES.items()]
 
-    blocks = []
+    blocks, missing = [], []
     for name, path, face, note in wanted:
         if not path.exists():
-            print(f"  skipping {name}: {path} not present", file=sys.stderr)
+            missing.append(f"{name}: {path}")
             continue
         groups = as_groups(advances(path, face))
         rows = "\n".join(f"        {w!r}: {chars!r}," for w, chars in groups)
         blocks.append(f'    # {note}\n    "{name}": {{\n{rows}\n    }},')
+
+    # A missing file used to be a warning on stderr, which is easy to miss and quietly
+    # drops a face that callers already rely on. Regenerating has to be all or nothing.
+    if missing:
+        sys.exit(
+            "not regenerating, these font files are missing:\n  "
+            + "\n  ".join(missing)
+            + "\nThe table would silently lose them. Fetch them and run again."
+        )
 
     body = "\n".join(blocks)
     aliases = "\n".join(f'    "{k}": "{v}",' for k, v in sorted(ALIASES.items()))

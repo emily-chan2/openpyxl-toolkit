@@ -648,11 +648,12 @@ class WorksheetToolkit:
         are measured as the value is stored, so a currency or percentage column may
         come out narrower than it needs to be.
 
-        Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman,
-        Courier New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is
-        measured with Verdana's character widths unless ``measure`` is given. Verdana
-        is the widest of them, so an unmeasurable face errs wide: a column that
-        is too narrow hides what it holds, one that is too wide only looks untidy.
+        Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
+        Garamond, Georgia, Inter, Open Sans, Palatino, Roboto, Segoe UI, Tahoma, Times
+        New Roman, and Verdana, along with Helvetica, Book Antiqua and the open faces
+        drawn to match them. Any other face is measured with Verdana's character
+        widths unless ``measure`` is given. Verdana is the widest of them so an
+        unmeasurable face errs wide.
         """
         ws = self.worksheet
         if columns is None:
