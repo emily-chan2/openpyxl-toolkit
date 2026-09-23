@@ -16,8 +16,10 @@ def test_version_is_single_sourced():
 
 
 def test_public_surface():
-    assert openpyxl_toolkit.__all__ == ["WorksheetToolkit"]
+    assert openpyxl_toolkit.__all__ == ["WorksheetToolkit", "column_index", "column_letter"]
     assert openpyxl_toolkit.WorksheetToolkit.__module__ == "openpyxl_toolkit.worksheet_toolkit"
+    assert openpyxl_toolkit.column_letter.__module__ == "openpyxl_toolkit.columns"
+    assert openpyxl_toolkit.column_index.__module__ == "openpyxl_toolkit.columns"
 
 
 def test_py_typed_ships_with_the_package():

@@ -10,6 +10,10 @@ What this catches is the way examples rot: a renamed method, a changed
 signature, an argument that no longer exists, a call that now raises. What it
 cannot catch is a comment beside an example going out of date, since a comment
 is never run. Claims worth pinning belong in a test of their own.
+
+The column functions are the exception. They hand back a value rather than the
+toolkit, so their examples are written with the answer under them and doctest
+can check it, which is stricter than merely running them.
 """
 
 import doctest
@@ -19,6 +23,7 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
+import openpyxl_toolkit.columns
 from openpyxl_toolkit import WorksheetToolkit
 
 README = Path(__file__).resolve().parent.parent / "README.md"
@@ -69,6 +74,14 @@ def test_the_readme_still_carries_examples():
     """Nothing to run would make the test above pass without reading anything."""
     examples = doctest.DocTestParser().get_examples(README.read_text(encoding="utf-8"))
     assert len(examples) >= 10
+
+
+def test_the_examples_in_the_column_functions_give_the_answers_they_claim():
+    """Checked against the printed output, not just run."""
+    results = doctest.testmod(openpyxl_toolkit.columns)
+
+    assert results.failed == 0
+    assert results.attempted >= 6
 
 
 def test_the_documented_methods_are_the_ones_expected():

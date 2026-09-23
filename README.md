@@ -52,9 +52,9 @@ Three ways, on every method that formats cells.
 ```
 
 `cells` takes a block (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`)
-or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"` is
-normalized, and an unbounded side is filled in from the used range, so `"B:B"`
-means column B as far as the sheet goes rather than all 1,048,576 rows.
+or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"`
+is normalized, and an unbounded side is filled in from the used range, so
+`"B:B"` means column B as far as the sheet goes rather than all 1,048,576 rows.
 
 `rows` and `columns` take lists.
 
@@ -66,6 +66,22 @@ Given both rows and columns, `intersections_only` decides what they mean:
 | `intersections_only=False` | every cell in those rows **and** every cell in those columns — a cross |
 
 Giving both `cells` and `rows`/`columns` raises.
+
+### Column letters and numbers
+
+`rows` and `columns` take numbers, so there is a pair for converting either way.
+
+```python
+>>> from openpyxl_toolkit import column_letter, column_index
+
+>>> column_letter(3)    # 'C'
+>>> column_index("C")   # 3
+>>> toolkit.set_column_width(width=18, columns=[column_index("D")])
+```
+
+openpyxl has its own pair of methods in `openpyxl.utils`, but they run off the
+end of the grid. `get_column_letter(16385)` returns `"XFE"`, and a workbook
+using that column will not open. These stop at `XFD`, column 16,384.
 
 ## Methods
 
@@ -90,9 +106,9 @@ keeps whatever was there.
 
 ## Fitting columns
 
-`set_column_best_fit` measures every character at its own width in the font being
-used, so a column of i's does not come out as wide as a column of W's. Excel's own
-formula turns the total into a width:
+`set_column_best_fit` measures every character at its own width in the font
+being used, so a column of i's does not come out as wide as a column of W's.
+Excel's own formula turns the total into a width:
 
 ```
 width = (pixels of text + 5 padding pixels) / max digit width
@@ -109,12 +125,12 @@ measured with Calibri's character widths unless `measure` is given.
 Three items to note:
 
 - Text is assumed to be on one line. Wrapped text is not accounted for.
-- Only dates and times are rendered as Excel displays them. Other number formats,
-  including the ones `set_number_format` writes, are measured as the value is
-  stored, so a currency column can come out narrower than it needs to be.
-  `min_width` is the answer.
-- Formula cells are skipped by default, since the formula text is not what the
-  reader sees. Set that column's width directly, or pass `ignore_formulas=False`.
+- Only dates and times are rendered as Excel displays them. Other number
+  formats, including the ones `set_number_format` writes, are measured as the
+  value is stored, so a currency column can come out narrower than it needs to
+  be. `min_width` is the answer.
+- Formula cells are skipped by default. Set those column widths directly, or
+  pass `ignore_formulas=False` to override this behavior.
 
 A merged title in row 1 will size column A to the whole title, because a merged
 range stores its value in the top-left cell. Use `ignore_rows` in these cases.

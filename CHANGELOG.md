@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `column_letter` and `column_index`, exported from the package root, convert between a
+  column's number and its letter: `column_letter(3)` is `'C'`, `column_index('C')` is 3.
+  openpyxl has a pair of these in `openpyxl.utils`, but both run past the end of the
+  grid -- `get_column_letter(16385)` returns `'XFE'` and
+  `column_index_from_string('XFE')` returns 16385. Workbooks built on columns that far
+  out will not open. These new methods stop at XFD, and report an index outside the grid
+  the same way every other method does. A letter is read in either case and with
+  surrounding whitespace, since neither can mean anything else; a cell reference such as
+  `'C1'` raises rather than being read as its column.
+
 ## [0.1.0] - 2026-09-22
 
 The first release. Until now the project was one file, `worksheet_toolkit.py`, sitting
@@ -192,4 +206,5 @@ written against that file, since it is the only version anyone has had.
   that does not exist, so a named row past the end of the sheet grew `max_row` during
   the row pass and the column pass then swept down to it.
 
+[Unreleased]: https://github.com/emily-chan2/openpyxl-toolkit/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/emily-chan2/openpyxl-toolkit/releases/tag/v0.1.0
