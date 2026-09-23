@@ -4,6 +4,10 @@ import pytest
 
 from openpyxl_toolkit import _metrics
 
+# Naming a real face here would make these tests fail the day it gains a table,
+# which is a change to the table rather than to the behaviour being checked.
+NEVER_A_FONT = "No Such Face"
+
 BUILT_IN = [
     "calibri",
     "aptos",
@@ -49,7 +53,7 @@ def test_font_names_are_matched_case_and_space_insensitively():
 
 
 def test_an_unknown_font_falls_back_to_the_wide_face_and_says_so():
-    widths, matched = _metrics.widths_for("Comic Sans MS")
+    widths, matched = _metrics.widths_for(NEVER_A_FONT)
     assert not matched
     assert widths is _metrics.widths_for("verdana")[0]
 
@@ -73,7 +77,7 @@ def test_the_fallback_face_is_the_widest_table_there_is():
 
 def test_an_unknown_text_font_is_measured_wider_than_calibri_would_be():
     """Too narrow hides what a column holds; too wide only looks untidy."""
-    unknown = _metrics.column_width("Representative", 11, 11, "Segoe UI", "Calibri")
+    unknown = _metrics.column_width("Representative", 11, 11, NEVER_A_FONT, "Calibri")
     as_calibri = _metrics.column_width("Representative", 11, 11, "Calibri", "Calibri")
 
     assert unknown > as_calibri
@@ -85,7 +89,7 @@ def test_an_unknown_unit_font_does_not_narrow_the_column():
     A wider unit divides by more and hands back a narrower column, so using the
     fallback here would undo what it is for.
     """
-    unknown_unit = _metrics.column_width("Representative", 11, 11, "Georgia", "Segoe UI")
+    unknown_unit = _metrics.column_width("Representative", 11, 11, "Georgia", NEVER_A_FONT)
     calibri_unit = _metrics.column_width("Representative", 11, 11, "Georgia", "Calibri")
 
     assert unknown_unit == calibri_unit
