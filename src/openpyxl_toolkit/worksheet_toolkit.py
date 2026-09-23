@@ -650,7 +650,9 @@ class WorksheetToolkit:
 
         Built-in metrics cover Aptos, Calibri, Arial, Helvetica, Times New Roman,
         Courier New, Cambria, Verdana, Georgia, Tahoma and Futura. Any other face is
-        measured with Calibri's character widths unless ``measure`` is given.
+        measured with Verdana's character widths unless ``measure`` is given. Verdana
+        is the widest of them, so an unmeasurable face errs wide: a column that
+        is too narrow hides what it holds, one that is too wide only looks untidy.
         """
         ws = self.worksheet
         if columns is None:
