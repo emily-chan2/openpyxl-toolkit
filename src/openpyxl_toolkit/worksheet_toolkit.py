@@ -13,6 +13,8 @@ from typing import cast, get_args
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.cell import coordinate_from_string
+from openpyxl.utils.exceptions import CellCoordinatesException
 from openpyxl.worksheet.cell_range import CellRange
 from openpyxl.worksheet.views import Selection
 from openpyxl.worksheet.worksheet import Worksheet
@@ -35,14 +37,19 @@ from ._types import (
     HorizontalAlignment,
     IndexSelection,
     ReadingOrder,
+    SheetState,
     Underline,
     VerticalAlignment,
 )
+from .columns import column_index
 
 __all__ = ["WorksheetToolkit"]
 
 # One list, so the runtime check and the type a caller sees cannot drift apart.
 _BORDER_SIDES: tuple[BorderSide, ...] = get_args(BorderSide)
+
+# Same reason: the runtime check and the type a caller sees cannot drift apart.
+_SHEET_STATES: tuple[SheetState, ...] = get_args(SheetState)
 
 
 class WorksheetToolkit:
@@ -85,27 +92,56 @@ class WorksheetToolkit:
         """Name of the sheet being worked on."""
         return f"<{type(self).__name__} {self.worksheet.title!r}>"
 
-    def freeze_panes(self, cell: str | None = None) -> WorksheetToolkit:
+    def freeze_panes(self, cell: str | None) -> WorksheetToolkit:
         """Freeze the rows above and the columns left of a cell. Those rows and columns
         then stay in view as the sheet is scrolled.
 
         Parameters
         ----------
-        cell : str, optional
-            The top-left cell of the scrolling area, such as 'B2'. None or an empty
-            string unfreezes the panes.
+        cell : str or None
+            The top-left cell of the scrolling area, such as 'B2'. None unfreezes.
 
         Returns
         -------
         WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If ``cell`` is not a single cell reference, or names a cell outside
+            Excel's grid. An empty string is not a spelling of None.
+
+        Notes
+        -----
+        Unfreezing has to clear the pane and the selections together. openpyxl clears
+        the pane alone but leaves three split selections behind. This makes some
+        versions of Excel ask to repair the file. Unfreezing panes using this toolkit
+        does not have this issue.
         """
-        if cell is None or cell == "":
-            # openpyxl clears the pane but leaves the three split selections behind,
-            # which is what makes some versions of Excel offer to repair the file.
-            self.worksheet.freeze_panes = None
-            self.worksheet.sheet_view.selection = [Selection()]
-        else:
-            self.worksheet.freeze_panes = cell
+        if cell is None:
+            return self._unfreeze()
+
+        try:
+            column_letter, row = coordinate_from_string(cell)
+        except CellCoordinatesException:
+            raise ValueError(
+                f"cell must be one cell reference such as 'B2', got {cell!r}. "
+                "Pass None to unfreeze."
+            ) from None
+
+        check_bounds(rows=[row], columns=[column_index(column_letter)])
+
+        if (column_letter.upper(), row) == ("A", 1):
+            # Nothing is above row 1 or left of column A, so this is unfreezing.
+            return self._unfreeze()
+
+        self.worksheet.freeze_panes = f"{column_letter.upper()}{row}"
+        return self
+
+    def _unfreeze(self) -> WorksheetToolkit:
+        """Clear the pane and the split selections it left behind."""
+        self.worksheet.freeze_panes = None
+        self.worksheet.sheet_view.selection = [Selection()]
         return self
 
     def merge_cells(
@@ -1138,13 +1174,187 @@ class WorksheetToolkit:
             cell.number_format = number_format
         return self
 
-    def set_zoom_scale(self, zoom_scale: int = 100) -> WorksheetToolkit:
+    def set_autofilter(
+        self,
+        *,
+        cells: str | None | Unchanged = UNCHANGED,
+        start_row: int | None = None,
+        start_column: int | None = None,
+        end_row: int | None = None,
+        end_column: int | None = None,
+    ) -> WorksheetToolkit:
+        """Put Excel's filter controls on a range, or take them off.
+
+        The first row of the range is the header the arrows sit on; the rows beneath
+        are what they filter.
+
+        Parameters
+        ----------
+        cells : str or None
+            The range, such as ``"A3:G12"``, or whole columns, ``"A:C"``. Whole
+            columns are the sturdier choice when rows are still being written: Excel
+            works out the extent when the file is opened, so the filter covers the
+            data however much of it there turns out to be. Whole rows, ``"1:5"``, are
+            not a form Excel has. None removes the autofilter. Required unless the
+            four coordinates are given.
+        start_row, start_column, end_row, end_column : int, optional
+            The range as four numbers. All four are needed together, and not alongside
+            ``cells``.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If neither ``cells`` nor the four coordinates are given, if both are, if
+            only some of the four are, or if the range falls outside Excel's grid.
+
+        Examples
+        --------
+        >>> toolkit.set_autofilter(cells="A1:C3")
+        >>> toolkit.set_autofilter(cells=None)
+
+        Notes
+        -----
+        This adds the control, not a criterion. A sheet can carry an autofilter with
+        nothing filtered, which is the usual case, and the reader chooses from the
+        dropdown.
+        """
+        if cells is None:
+            self.worksheet.auto_filter.ref = None
+            return self
+
+        target = resolve_range_arguments(
+            "set_autofilter",
+            None if cells is UNCHANGED else cells,
+            start_row,
+            start_column,
+            end_row,
+            end_column,
+        )
+        if isinstance(target, str):
+            rows, columns = resolve_cells(self.worksheet, target)
+            check_bounds(rows=rows, columns=columns)
+            try:
+                # openpyxl's own pattern is the authority on what Excel accepts here:
+                # a block, or whole columns. Whole rows are not a form it has.
+                self.worksheet.auto_filter.ref = target
+            except ValueError:
+                raise ValueError(
+                    f"cells must be a block such as 'A1:C10', or whole columns such "
+                    f"as 'A:C', got {target!r}. Excel has no autofilter over whole "
+                    f"rows."
+                ) from None
+        else:
+            first_row, first_column, last_row, last_column = target
+            check_bounds(rows=(first_row, last_row), columns=(first_column, last_column))
+            self.worksheet.auto_filter.ref = (
+                f"{get_column_letter(first_column)}{first_row}"
+                f":{get_column_letter(last_column)}{last_row}"
+            )
+        return self
+
+    def set_gridline_visibility(self, *, visible: bool) -> WorksheetToolkit:
+        """Show or hide the grid Excel draws between cells on screen.
+
+        Parameters
+        ----------
+        visible : bool
+            True shows the grid, False hides it.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Examples
+        --------
+        >>> toolkit.set_gridline_visibility(visible=True)
+        >>> toolkit.set_gridline_visibility(visible=False)
+
+        Notes
+        -----
+        On screen only. Excel keeps a separate setting for whether gridlines are
+        printed, off by default, which this method does not touch.
+        """
+        self.worksheet.sheet_view.showGridLines = visible
+        return self
+
+    def set_sheet_visibility(self, *, state: SheetState) -> WorksheetToolkit:
+        """Show the sheet, hide it, or hide it from the unhide list as well.
+
+        Parameters
+        ----------
+        state : {'visible', 'hidden', 'very_hidden'}
+            ``'hidden'`` takes the tab away but leaves the sheet in the list Excel
+            offers under right-click, Unhide. ``'very_hidden'`` leaves it out of that
+            list too, so the sheet can only be brought back by code.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If ``state`` is not one of the three.
+
+        Examples
+        --------
+        >>> toolkit.set_sheet_visibility(state="hidden")
+
+        Notes
+        -----
+        ``'very_hidden'`` is Excel's ``veryHidden``, spelled here the way the rest
+        of the package spells a multi-word value.
+
+        ``very_hidden`` hides a sheet from Excel's interface and nothing more. The sheet
+        is still in the file in plain text, still listed by openpyxl, and still read by
+        anything that opens the workbook, so it is a way to keep a lookup table out of a
+        reader's way.
+        """
+        if state not in _SHEET_STATES:
+            raise ValueError(
+                f"state must be one of {', '.join(map(repr, _SHEET_STATES))}, got {state!r}"
+            )
+
+        self.worksheet.sheet_state = "veryHidden" if state == "very_hidden" else state
+        return self
+
+    def set_tab_color(self, color: str | None) -> WorksheetToolkit:
+        """Set the color of the sheet's tab.
+
+        Parameters
+        ----------
+        color : str or None
+            Hex color, with or without a leading ``#``. None clears the color.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If ``color`` is not a hex color.
+
+        Examples
+        --------
+        >>> toolkit.set_tab_color("#1d3557")
+        >>> toolkit.set_tab_color(None)
+        """
+        properties = self.worksheet.sheet_properties
+        properties.tabColor = None if color is None else normalize_color(color)
+        return self
+
+    def set_zoom_scale(self, zoom_scale: int) -> WorksheetToolkit:
         """Set how far the sheet is zoomed in when it is opened.
 
         Parameters
         ----------
-        zoom_scale : int, optional
-            Percentage, 10 to 400. Defaults to 100.
+        zoom_scale : int
+            Percentage, 10 to 400. Required.
 
         Returns
         -------

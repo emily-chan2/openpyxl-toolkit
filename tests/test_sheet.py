@@ -4,6 +4,7 @@ import re
 import zipfile
 
 import pytest
+from openpyxl import Workbook
 
 from openpyxl_toolkit import WorksheetToolkit
 
@@ -35,6 +36,95 @@ def test_freeze_panes_at_b2_survives_the_round_trip(sheet, roundtrip):
     assert roundtrip(sheet).freeze_panes == "B2"
 
 
+def test_freeze_panes_accepts_a_lower_case_reference(sheet, roundtrip):
+    WorksheetToolkit(sheet).freeze_panes("b2")
+
+    assert roundtrip(sheet).freeze_panes == "B2"
+
+
+def test_freezing_at_a1_is_the_same_as_passing_none(sheet, tmp_path):
+    """A1 names a scrolling area starting at the corner, so it freezes nothing.
+
+    Compared as saved files rather than as attributes. Unfreezing has to clear the
+    pane and the three split selections together, and openpyxl clears only the
+    pane, which is what makes some versions of Excel offer to repair the file.
+    """
+
+    def saved(unfreeze_with):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet["A1"] = "x"
+        toolkit = WorksheetToolkit(worksheet)
+        toolkit.freeze_panes("B2")
+        toolkit.freeze_panes(unfreeze_with)
+        path = tmp_path / f"{unfreeze_with}.xlsx"
+        workbook.save(path)
+        with zipfile.ZipFile(path) as archive:
+            return archive.read("xl/worksheets/sheet1.xml")
+
+    assert saved("A1") == saved(None)
+    assert saved("a1") == saved(None)
+
+
+def test_an_unfrozen_sheet_is_indistinguishable_from_one_never_frozen(sheet, tmp_path):
+    """The property Excel actually reacts to, asserted on the saved file.
+
+    Removing a pane through openpyxl alone leaves three selection elements, two
+    of them naming panes that no longer exist. Opening such a file in Excel
+    produces the offer to repair it; the file this produces opens cleanly. Both
+    were checked by hand once, and this keeps the difference from coming back.
+    """
+
+    def saved(name, build):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet["A1"] = "x"
+        build(WorksheetToolkit(worksheet), worksheet)
+        path = tmp_path / f"{name}.xlsx"
+        workbook.save(path)
+        with zipfile.ZipFile(path) as archive:
+            return archive.read("xl/worksheets/sheet1.xml")
+
+    never_frozen = saved("never", lambda toolkit, worksheet: None)
+    unfrozen = saved(
+        "unfrozen",
+        lambda toolkit, worksheet: (toolkit.freeze_panes("B2"), toolkit.freeze_panes(None)),
+    )
+    left_behind = saved(
+        "raw",
+        lambda toolkit, worksheet: (
+            toolkit.freeze_panes("B2"),
+            setattr(worksheet, "freeze_panes", None),
+        ),
+    )
+
+    assert unfrozen == never_frozen
+    assert left_behind != never_frozen
+
+
+def test_a_sheet_that_was_never_frozen_has_one_selection(sheet):
+    """What unfreezing has to get back to, and what the comparison above rests on."""
+    assert len(sheet.sheet_view.selection) == 1
+
+
+@pytest.mark.parametrize("cell", ["", "nonsense", "B", "2", "B2:C3", " B2 "])
+def test_freeze_panes_rejects_anything_that_is_not_one_cell(sheet, cell):
+    """An empty string is not a spelling of None: openpyxl took it and unfroze
+    without clearing the selections."""
+    with pytest.raises(ValueError, match="one cell reference"):
+        WorksheetToolkit(sheet).freeze_panes(cell)
+
+
+def test_freeze_panes_rejects_a_cell_outside_the_grid(sheet):
+    with pytest.raises(ValueError, match="outside the worksheet"):
+        WorksheetToolkit(sheet).freeze_panes("ZZZ99999999")
+
+
+def test_freeze_panes_needs_an_argument(sheet):
+    with pytest.raises(TypeError, match="cell"):
+        WorksheetToolkit(sheet).freeze_panes()
+
+
 def test_merged_range_survives_the_round_trip(sheet, roundtrip):
     WorksheetToolkit(sheet).merge_cells(cells="A1:C2")
 
@@ -64,6 +154,254 @@ def test_zoom_scale_bounds_are_inclusive(sheet, roundtrip, zoom_scale):
 def test_zoom_scale_outside_the_allowed_span_is_rejected(sheet, zoom_scale):
     with pytest.raises(ValueError):
         WorksheetToolkit(sheet).set_zoom_scale(zoom_scale=zoom_scale)
+
+
+def test_tab_color_survives_the_round_trip(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_tab_color("#1d3557")
+
+    assert roundtrip(sheet).sheet_properties.tabColor.rgb == "FF1D3557"
+
+
+def test_a_six_digit_tab_color_is_stored_opaque(sheet, roundtrip):
+    """openpyxl pads a six digit hex with alpha 00, which is fully transparent."""
+    WorksheetToolkit(sheet).set_tab_color("1d3557")
+
+    assert roundtrip(sheet).sheet_properties.tabColor.rgb == "FF1D3557"
+
+
+def test_a_tab_color_matches_the_argb_the_other_methods_write(sheet, roundtrip):
+    """One hex handed to two methods has to reach the file as one color."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_tab_color("#ff0000")
+    toolkit.set_font(cells="A1", color="#ff0000")
+
+    reloaded = roundtrip(sheet)
+    assert reloaded.sheet_properties.tabColor.rgb == reloaded["A1"].font.color.rgb
+
+
+def test_tab_color_none_clears_it(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_tab_color("#1d3557")
+    toolkit.set_tab_color(None)
+
+    assert roundtrip(sheet).sheet_properties.tabColor is None
+
+
+def test_a_sheet_with_no_tab_color_set_has_none(sheet, roundtrip):
+    """The clearing test would pass without reading anything if this were not true."""
+    assert roundtrip(sheet).sheet_properties.tabColor is None
+
+
+def test_hiding_gridlines_survives_the_round_trip(sheet, roundtrip):
+    WorksheetToolkit(sheet).set_gridline_visibility(visible=False)
+
+    assert roundtrip(sheet).sheet_view.showGridLines is False
+
+
+def test_showing_gridlines_again_survives_the_round_trip(sheet, roundtrip):
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_gridline_visibility(visible=False)
+    toolkit.set_gridline_visibility(visible=True)
+
+    assert roundtrip(sheet).sheet_view.showGridLines is True
+
+
+def test_a_new_sheet_leaves_gridlines_alone(sheet, roundtrip):
+    """Untouched is not the same as shown: openpyxl leaves the setting unwritten."""
+    assert roundtrip(sheet).sheet_view.showGridLines is None
+
+
+def test_hiding_gridlines_leaves_printed_gridlines_alone(sheet, roundtrip):
+    """Excel keeps screen and print gridlines apart, and so does this."""
+    WorksheetToolkit(sheet).set_gridline_visibility(visible=False)
+
+    assert roundtrip(sheet).print_options.gridLines is None
+
+
+def test_hiding_gridlines_leaves_cell_borders_drawn(sheet, roundtrip):
+    """The point of hiding the grid is that deliberate borders still show."""
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_border(cells="A1", sides=("bottom",), style="thin")
+    toolkit.set_gridline_visibility(visible=False)
+
+    reloaded = roundtrip(sheet)
+    assert reloaded.sheet_view.showGridLines is False
+    assert reloaded["A1"].border.bottom.style == "thin"
+
+
+def test_autofilter_survives_the_round_trip(sheet, roundtrip):
+    _grid(sheet, 4, 3)
+
+    WorksheetToolkit(sheet).set_autofilter(cells="A1:C4")
+
+    assert roundtrip(sheet).auto_filter.ref == "A1:C4"
+
+
+def test_autofilter_by_coordinates_matches_the_range_string(sheet, roundtrip):
+    _grid(sheet, 4, 3)
+
+    WorksheetToolkit(sheet).set_autofilter(start_row=1, start_column=1, end_row=4, end_column=3)
+
+    assert roundtrip(sheet).auto_filter.ref == "A1:C4"
+
+
+def test_autofilter_none_removes_it(sheet, roundtrip):
+    _grid(sheet, 4, 3)
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_autofilter(cells="A1:C4")
+
+    toolkit.set_autofilter(cells=None)
+
+    assert roundtrip(sheet).auto_filter.ref is None
+
+
+def test_a_sheet_with_no_autofilter_has_none(sheet, roundtrip):
+    """Without this the removal test would pass by reading nothing."""
+    assert roundtrip(sheet).auto_filter.ref is None
+
+
+def test_an_autofilter_carries_no_criteria(sheet, roundtrip):
+    """The control, not a rule. openpyxl can write a rule but hides no rows."""
+    _grid(sheet, 4, 3)
+
+    WorksheetToolkit(sheet).set_autofilter(cells="A1:C4")
+
+    reloaded = roundtrip(sheet)
+    assert reloaded.auto_filter.filterColumn == []
+    assert [reloaded.row_dimensions[r].hidden for r in range(1, 5)] == [False] * 4
+
+
+def test_autofilter_needs_a_range(sheet):
+    with pytest.raises(ValueError, match="set_autofilter needs either"):
+        WorksheetToolkit(sheet).set_autofilter()
+
+
+def test_autofilter_rejects_both_spellings_at_once(sheet):
+    with pytest.raises(ValueError, match="not both"):
+        WorksheetToolkit(sheet).set_autofilter(cells="A1:C4", start_row=1)
+
+
+@pytest.mark.parametrize("cells", ["A:C", "B:B"])
+def test_autofilter_accepts_whole_columns(sheet, roundtrip, cells):
+    """Excel works out the extent on opening, so the filter covers the data
+    however much of it there turns out to be. Checked by hand in Excel once: the
+    arrows appear and the filter works."""
+    _grid(sheet, 4, 3)
+
+    WorksheetToolkit(sheet).set_autofilter(cells=cells)
+
+    assert roundtrip(sheet).auto_filter.ref == cells
+
+
+@pytest.mark.parametrize("cells", ["1:5", "2:2"])
+def test_autofilter_rejects_whole_rows(sheet, cells):
+    """Not a form Excel has. openpyxl refuses it too, with its raw pattern."""
+    _grid(sheet, 4, 3)
+
+    with pytest.raises(ValueError, match="whole columns"):
+        WorksheetToolkit(sheet).set_autofilter(cells=cells)
+
+
+def test_autofilter_can_be_set_before_the_data_is_written(sheet, roundtrip):
+    """A concrete range does not depend on what is on the sheet yet."""
+    WorksheetToolkit(sheet).set_autofilter(cells="A1:C4")
+
+    for row in range(1, 5):
+        for column in range(1, 4):
+            sheet.cell(row=row, column=column, value="x")
+
+    assert roundtrip(sheet).auto_filter.ref == "A1:C4"
+
+
+def test_autofilter_accepts_a_lower_case_range(sheet, roundtrip):
+    _grid(sheet, 4, 3)
+
+    WorksheetToolkit(sheet).set_autofilter(cells="a1:c4")
+
+    assert roundtrip(sheet).auto_filter.ref == "A1:C4"
+
+
+def test_autofilter_outside_the_grid_is_rejected(sheet):
+    with pytest.raises(ValueError, match="outside the worksheet"):
+        WorksheetToolkit(sheet).set_autofilter(
+            start_row=1, start_column=1, end_row=4, end_column=20000
+        )
+
+
+def test_hiding_a_sheet_survives_the_round_trip(sheet, roundtrip):
+    second = sheet.parent.create_sheet("Second")
+
+    WorksheetToolkit(second).set_sheet_visibility(state="hidden")
+
+    assert roundtrip(sheet).parent["Second"].sheet_state == "hidden"
+
+
+def test_very_hidden_is_written_with_excels_spelling(sheet, roundtrip):
+    """The package says very_hidden; the file has to say veryHidden."""
+    second = sheet.parent.create_sheet("Second")
+
+    WorksheetToolkit(second).set_sheet_visibility(state="very_hidden")
+
+    assert roundtrip(sheet).parent["Second"].sheet_state == "veryHidden"
+
+
+def test_a_hidden_sheet_can_be_shown_again(sheet, roundtrip):
+    second = sheet.parent.create_sheet("Second")
+    toolkit = WorksheetToolkit(second)
+    toolkit.set_sheet_visibility(state="very_hidden")
+
+    toolkit.set_sheet_visibility(state="visible")
+
+    assert roundtrip(sheet).parent["Second"].sheet_state == "visible"
+
+
+def test_excels_own_spelling_is_rejected_and_the_message_gives_the_right_one(sheet):
+    second = sheet.parent.create_sheet("Second")
+
+    with pytest.raises(ValueError, match="very_hidden"):
+        WorksheetToolkit(second).set_sheet_visibility(state="veryHidden")
+
+
+def test_an_unknown_sheet_state_is_rejected(sheet):
+    second = sheet.parent.create_sheet("Second")
+
+    with pytest.raises(ValueError, match="state must be one of"):
+        WorksheetToolkit(second).set_sheet_visibility(state="nope")
+
+
+def test_hiding_every_sheet_is_allowed_while_the_code_runs(sheet):
+    """A workbook part way through being rearranged is not a file yet.
+
+    Refusing here would mean the new sheet had to be shown before the old one
+    could be hidden, which is an ordering the caller should not have to know.
+    """
+    second = sheet.parent.create_sheet("Second")
+
+    WorksheetToolkit(second).set_sheet_visibility(state="hidden")
+    WorksheetToolkit(sheet).set_sheet_visibility(state="hidden")
+
+    assert [s.sheet_state for s in sheet.parent.worksheets] == ["hidden", "hidden"]
+
+
+def test_saving_a_workbook_with_nothing_visible_still_fails(sheet, tmp_path):
+    """Allowed in memory, refused in a file. openpyxl is what refuses it."""
+    WorksheetToolkit(sheet).set_sheet_visibility(state="hidden")
+
+    with pytest.raises((ValueError, IndexError)):
+        sheet.parent.save(tmp_path / "book.xlsx")
+
+
+def test_a_workbook_whose_sheets_are_all_visible_still_saves(sheet, roundtrip):
+    """The guard would pass by rejecting everything if this were not checked."""
+    second = sheet.parent.create_sheet("Second")
+    WorksheetToolkit(second).set_sheet_visibility(state="hidden")
+
+    assert roundtrip(sheet).parent.sheetnames == ["Sheet", "Second"]
+
+
+def test_zoom_scale_needs_a_value(sheet):
+    with pytest.raises(TypeError, match="zoom_scale"):
+        WorksheetToolkit(sheet).set_zoom_scale()
 
 
 def test_sheet_level_methods_return_the_toolkit_for_chaining(sheet):

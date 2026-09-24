@@ -88,10 +88,14 @@ def test_the_documented_methods_are_the_ones_expected():
     """An empty list would make the test above pass by testing nothing."""
     assert DOCUMENTED == [
         "set_alignment",
+        "set_autofilter",
         "set_border",
         "set_fill",
         "set_font",
+        "set_gridline_visibility",
         "set_number_format",
         "set_outside_border",
+        "set_sheet_visibility",
+        "set_tab_color",
         "WorksheetToolkit",
     ]
