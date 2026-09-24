@@ -1,32 +1,28 @@
 """Converting between a column's letter and its number.
 
-openpyxl has a pair of these in ``openpyxl.utils``, but both run off the end of
-the grid: ``get_column_letter(16385)`` hands back ``'XFE'`` and
-``column_index_from_string('XFE')`` hands back 16385, neither of which Excel can
-open. These stop at XFD, and report the same way as every other index the
-package checks.
+Neither function touches a worksheet, so neither has an opinion about how wide
+Excel's grid is. They convert, and the methods that create cells are where an
+index too far out is caught. openpyxl's pair in ``openpyxl.utils`` stops at
+``ZZZ``, three letters, which is neither Excel's limit nor no limit at all.
 """
 
 from __future__ import annotations
 
-from openpyxl.utils import column_index_from_string, get_column_letter
-
-from ._limits import MAX_COLUMN
-from ._ranges import check_indexes
-
 __all__ = ["column_index", "column_letter"]
 
-#: The letter of the last column Excel has, worked out rather than spelled out.
-LAST_COLUMN = get_column_letter(MAX_COLUMN)
+_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def column_letter(index: int) -> str:
-    """Convert a column number to the letter Excel shows in its header.
+    """Convert a column number to its letter.
 
     Parameters
     ----------
     index : int
-        Column number, counting from 1.
+        Column number, counting from 1. There is no upper limit: the number does
+        not have to be a column Excel has, since converting one is not the same
+        as writing to it. Formatting a column past the end of the grid is caught
+        by the method that formats it.
 
     Returns
     -------
@@ -36,10 +32,10 @@ def column_letter(index: int) -> str:
     Raises
     ------
     TypeError
-        If ``index`` is not an integer. A float is rejected rather than rounded:
-        openpyxl raises ``list indices must be integers`` from inside itself.
+        If ``index`` is not an integer. A float is rejected rather than rounded.
     ValueError
-        If ``index`` falls outside Excel's grid.
+        If ``index`` is below 1. Columns are counted from 1, as Excel counts
+        them, so 0 and negatives name nothing.
 
     Examples
     --------
@@ -50,18 +46,27 @@ def column_letter(index: int) -> str:
     >>> column_letter(16384)
     'XFD'
     """
-    check_indexes([index], MAX_COLUMN, "column")
-    return get_column_letter(index)
+    if not isinstance(index, int) or isinstance(index, bool):
+        raise TypeError(f"column index must be an integer, got {index!r}")
+    if index < 1:
+        raise ValueError(f"column index must be 1 or more, got {index}")
+
+    letters = []
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters.append(_LETTERS[remainder])
+    return "".join(reversed(letters))
 
 
 def column_index(letter: str) -> int:
-    """Convert a column letter to the number openpyxl counts it by.
+    """Convert a column letter to its number.
 
     Parameters
     ----------
     letter : str
         Column letter. Case does not matter, and surrounding whitespace is
-        ignored, since neither can mean anything else.
+        ignored, since neither can mean anything else. There is no upper limit,
+        for the same reason there is none on :func:`column_letter`.
 
     Returns
     -------
@@ -73,9 +78,9 @@ def column_index(letter: str) -> int:
     TypeError
         If ``letter`` is not a string.
     ValueError
-        If ``letter`` is not made of letters, or names a column outside Excel's
-        grid. A cell reference such as ``'C1'`` is rejected rather than read as
-        its column.
+        If ``letter`` is not made of letters. A cell reference such as ``'C1'``
+        is rejected rather than read as its column, since reading it that way
+        would accept a range where a column was meant.
 
     Examples
     --------
@@ -98,10 +103,8 @@ def column_index(letter: str) -> int:
             else ""
         )
         raise ValueError(f"{letter!r} is not a column letter.{hint}")
-    # Compared as text, which works because both are upper case ASCII: a longer
-    # name is always a later column, and equal lengths sort the same way.
-    if (len(name), name) > (len(LAST_COLUMN), LAST_COLUMN):
-        raise ValueError(
-            f"column {name} is outside the worksheet: columns run from A to {LAST_COLUMN}"
-        )
-    return column_index_from_string(name)
+
+    index = 0
+    for character in name:
+        index = index * 26 + (_LETTERS.index(character) + 1)
+    return index

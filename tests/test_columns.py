@@ -41,23 +41,31 @@ def test_surrounding_whitespace_is_ignored():
     assert column_index("  c  ") == 3
 
 
-@pytest.mark.parametrize("index", [MAX_COLUMN + 1, 18278, 100000])
-def test_a_number_past_the_last_column_is_rejected(index):
-    """openpyxl returns XFE and beyond, which Excel then refuses to open."""
-    with pytest.raises(ValueError, match="outside the worksheet"):
-        column_letter(index)
-
-
-@pytest.mark.parametrize("index", [0, -1])
+@pytest.mark.parametrize("index", [0, -1, -1000])
 def test_a_number_below_the_first_column_is_rejected(index):
-    with pytest.raises(ValueError, match="outside the worksheet"):
+    """Columns count from 1, as Excel counts them, so 0 and below name nothing."""
+    with pytest.raises(ValueError, match="1 or more"):
         column_letter(index)
 
 
-@pytest.mark.parametrize("letter", ["XFE", "ZZZ", "AAAA"])
-def test_a_letter_past_the_last_column_is_rejected(letter):
-    with pytest.raises(ValueError, match="outside the worksheet"):
-        column_index(letter)
+@pytest.mark.parametrize(
+    ("index", "letter"), [(MAX_COLUMN + 1, "XFE"), (18278, "ZZZ"), (18279, "AAAA")]
+)
+def test_a_column_past_the_end_of_the_grid_still_converts(index, letter):
+    """Converting a number is not writing to it.
+
+    Neither function touches a worksheet, so neither has an opinion about how
+    wide the grid is. Every method that creates cells checks that separately,
+    and openpyxl's own pair stops at ZZZ, which is neither Excel's limit nor
+    no limit.
+    """
+    assert column_letter(index) == letter
+    assert column_index(letter) == index
+
+
+def test_conversion_keeps_working_well_past_anything_excel_has():
+    assert column_letter(1_000_000) == "BDWGN"
+    assert column_index("BDWGN") == 1_000_000
 
 
 @pytest.mark.parametrize("index", [1.0, True, None, "3"])

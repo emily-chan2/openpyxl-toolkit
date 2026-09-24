@@ -29,9 +29,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking:** `freeze_panes` rejects anything that is not one cell reference. An empty
-  string used to be accepted and was worse than useless: openpyxl cleared the pane and
-  left three split selections behind, where a sheet that was never frozen has one, and
+- **Breaking:** `column_letter` and `column_index` have no upper limit. Excel's limit is
+  now checked where cells are created.
+- Both are now their own base-26 conversion rather than a wrapper around openpyxl's,
+  which was the only way past its own `ZZZ` ceiling. Checked against openpyxl across all
+  18,278 values it supports, in both directions, with no disagreement.
+- **Breaking:** `merge_cells` and `unmerge_cells` reject a range outside Excel's grid.
+  They were the two methods that did not, and the failure was silent rather than late: a
+  merge with `end_column=17000` produced `A1:YCV1` and saved without complaint, a file
+  claiming a merge over columns that do not exist. Rows happened to be caught, but by
+  openpyxl, as `Max value is 1048576`, naming neither the argument nor the method.
+- **Breaking:** `freeze_panes` rejects anything that is not a one cell reference. An
+  empty string used to be accepted and was worse than useless: openpyxl cleared the pane
+  and left three split selections behind, where a sheet that was never frozen has one, and
   those are what make some versions of Excel offer to repair the file. `'A1'` had the
   same fault and is a reference someone would reasonably write, since it names a
   scrolling area starting at the corner. Both now go through the same unfreezing code as
