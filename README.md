@@ -62,7 +62,10 @@ Python 3.10 or newer, and openpyxl 3.1 or newer.
 
 ## Choosing cells
 
-Three ways, on every method that formats cells.
+On every method that formats cells, there are 2 methods of selecting which cells
+the action should be applied to:
+1) `cells`
+2) `rows` and `columns`
 
 ```python
 >>> toolkit.set_fill(cells="A1:C3", fill_type="solid", start_color="#f4f6f8")
@@ -74,7 +77,8 @@ Three ways, on every method that formats cells.
 `cells` takes a block (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`)
 or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"`
 is normalized, and an unbounded side is filled in from the used range, so
-`"B:B"` means column B as far as the sheet goes rather than all 1,048,576 rows.
+`"B:B"` means column B as far as the sheet goes (rather than all 1,048,576
+rows).
 
 `rows` and `columns` take lists.
 
@@ -114,14 +118,16 @@ using that column will not open. These stop at `XFD`, column 16,384.
 | `set_border` | style and color, on any of six sides |
 | `set_outside_border` | one border around the edge of a block, leaving the inside alone |
 | `set_column_width` / `set_row_height` | an explicit size; 0 hides the column or row |
-| `set_column_best_fit` | a width that fits the widest cell |
-| `merge_cells` / `unmerge_cells` | a merged range; unmerging one that is not merged does nothing |
+| `set_column_best_fit` | a column width that fits the widest cell |
+| `merge_cells` / `unmerge_cells` | a merged range |
 | `freeze_panes` | rows above and columns left of a cell stay visible |
-| `set_zoom_scale` | 10 to 400 |
+| `set_zoom_scale` | the zoom level when the reader opens the file: 10 to 400 |
 
-Each returns the toolkit, so calls chain. Every parameter is keyword-only, apart
-from `freeze_panes`. Anything not named is left as is. `None` is not the same as
-leaving it out: `set_font(color=None)` clears the color, while omitting `color`
+Each method returns the toolkit, so calls chain. Most parameters are
+keyword-only.
+
+Anything not named is left as is. `None` is not the same as leaving out an
+argument: `set_font(color=None)` clears the color, while omitting `color`
 keeps whatever was there.
 
 ## Fitting columns
@@ -135,7 +141,7 @@ width = (pixels of text + 5 padding pixels) / max digit width
 ```
 
 ```python
->>> toolkit.set_column_best_fit(ignore_rows=[1], padding=1.5, min_width=9)
+>>> toolkit.set_column_best_fit(padding=1.5, min_width=9)
 ```
 
 Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
@@ -149,18 +155,20 @@ given. Verdana is the widest of them, so a face with no metrics errs wide: a
 column that is too narrow hides what it holds, while one that is too wide only
 looks untidy.
 
-Three items to note:
-
-- Text is assumed to be on one line. Wrapped text is not accounted for.
+Four things to note:
+- A wrapped cell is skipped. Wrapping exists so text conforms to the column, so
+  sizing the column to the unwrapped line would guarantee it never wraps. Pass
+  `ignore_wrapped=False` to override this behavior.
 - Only dates and times are rendered as Excel displays them. Other number
   formats, including the ones `set_number_format` writes, are measured as the
   value is stored, so a currency column can come out narrower than it needs to
-  be. `min_width` is the answer.
+  be. Use `min_width` or set the column width manually in these cases.
 - Formula cells are skipped by default. Set those column widths directly, or
   pass `ignore_formulas=False` to override this behavior.
-
-A merged title in row 1 will size column A to the whole title, because a merged
-range stores its value in the top-left cell. Use `ignore_rows` in these cases.
+- A cell merged across columns is skipped. `ignore_merged=False` measures it,
+  widening the one column that holds the value to fit text the reader sees
+  spread across the merge. A merge running down a single column is measured
+  either way.
 
 ## Type hints
 

@@ -591,6 +591,8 @@ class WorksheetToolkit:
         padding: float = 0,
         ignore_rows: Iterable[int] | None = None,
         ignore_formulas: bool = True,
+        ignore_wrapped: bool = True,
+        ignore_merged: bool = True,
         min_width: float | None = None,
         max_width: float | None = None,
         measure: MeasureText | None = None,
@@ -612,12 +614,21 @@ class WorksheetToolkit:
             Extra width on top of the fitted value. Defaults to 0; Excel's own 5
             pixels of cell padding are already part of the formula.
         ignore_rows : list of int, optional
-            Row numbers to leave out when measuring. A merged banner in row 1 is the
-            usual reason: its value is stored in the top-left cell, so it would size
-            that one column to the whole banner.
+            Row numbers to leave out when measuring, for a judgement this method
+            cannot make on its own: a long unmerged title, a totals row with a
+            wordy label, one outlier that would double the column.
         ignore_formulas : bool, optional
             True, the default, leaves formula cells unmeasured. The formula text is
             not what the reader sees, so measuring it oversizes the column.
+        ignore_wrapped : bool, optional
+            True, the default, leaves cells with ``wrap_text`` unmeasured. False
+            widens the column to fit the text, resulting in cell contents on a single
+            line.
+        ignore_merged : bool, optional
+            True, the default, leaves a cell merged across columns unmeasured.
+            False measures it, widening the one column that holds the value to
+            fit text the reader sees spread across the merge. A merge running
+            down a single column is measured either way.
         min_width : float, optional
             Lower bound on the result.
         max_width : float, optional
@@ -642,8 +653,6 @@ class WorksheetToolkit:
 
         Notes
         -----
-        Text is assumed to be on one line; wrapped text is not accounted for.
-
         Only dates and times are rendered as Excel displays them. Other number formats
         are measured as the value is stored, so a currency or percentage column may
         come out narrower than it needs to be.
@@ -665,6 +674,13 @@ class WorksheetToolkit:
         check_bounds(columns=columns)
         ignore_rows = set() if ignore_rows is None else set(ignore_rows)
         normal_font = workbook_normal_font(self.worksheet)
+        # Read once rather than per cell. Only the top-left of a merge holds the
+        # value; the rest are MergedCells with none, and are skipped anyway.
+        spanning_merges = (
+            {(r.min_row, r.min_col) for r in ws.merged_cells.ranges if r.max_col > r.min_col}
+            if ignore_merged
+            else set()
+        )
 
         measure = measure or measure_text
         for col in columns:
@@ -680,6 +696,12 @@ class WorksheetToolkit:
                     continue
 
                 if cell.value is None:
+                    continue
+
+                if (row, col) in spanning_merges:
+                    continue
+
+                if ignore_wrapped and cell.alignment.wrap_text:
                     continue
 
                 measured_anything = True
@@ -1122,7 +1144,7 @@ class WorksheetToolkit:
             cell.number_format = number_format
         return self
 
-    def set_zoom_scale(self, *, zoom_scale: int = 100) -> WorksheetToolkit:
+    def set_zoom_scale(self, zoom_scale: int = 100) -> WorksheetToolkit:
         """Set how far the sheet is zoomed in when it is opened.
 
         Parameters

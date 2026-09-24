@@ -3,7 +3,7 @@
 from datetime import date, datetime, time
 
 import pytest
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Font
 
 from openpyxl_toolkit import WorksheetToolkit
 from openpyxl_toolkit._text import displayed_text
@@ -191,6 +191,75 @@ def test_best_fit_applies_to_non_anchor_merged_columns(sheet, roundtrip):
     ws = roundtrip(sheet)
     widths = [ws.column_dimensions[letter].width for letter in "ABC"]
     assert widths[0] > widths[2] > widths[1]
+
+
+def test_best_fit_skips_a_wrapped_cell(sheet, roundtrip):
+    """Wrapping exists so text conforms to the column, not the other way round."""
+    sheet["A1"] = "word " * 40
+    sheet["A1"].alignment = Alignment(wrap_text=True)
+    sheet["A2"] = "Region"
+
+    WorksheetToolkit(sheet).set_column_best_fit()
+
+    fitted = roundtrip(sheet).column_dimensions["A"].width
+    assert fitted < 12
+
+
+def test_best_fit_measures_a_wrapped_cell_when_ignore_wrapped_is_false(sheet, roundtrip):
+    sheet["A1"] = "word " * 40
+    sheet["A1"].alignment = Alignment(wrap_text=True)
+    sheet["A2"] = "Region"
+
+    WorksheetToolkit(sheet).set_column_best_fit(ignore_wrapped=False)
+
+    assert roundtrip(sheet).column_dimensions["A"].width > 80
+
+
+def test_best_fit_skips_a_cell_merged_across_columns(sheet, roundtrip):
+    """The banner is shown across the merge; only the top-left cell holds it."""
+    sheet["A1"] = "Regional sales, third quarter 2026, by close date"
+    sheet["A2"] = "North"
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.merge_cells(cells="A1:G1")
+
+    toolkit.set_column_best_fit(columns=[1])
+
+    fitted = roundtrip(sheet).column_dimensions["A"].width
+    assert fitted < 12
+
+
+def test_best_fit_measures_a_merge_that_stays_within_one_column(sheet, roundtrip):
+    """A vertical merge shows its text in that column, so it still sets the width."""
+    sheet["A1"] = "A tall merged label"
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.merge_cells(cells="A1:A3")
+
+    toolkit.set_column_best_fit(columns=[1])
+
+    assert roundtrip(sheet).column_dimensions["A"].width > 14
+
+
+def test_best_fit_measures_a_merged_anchor_when_ignore_merged_is_false(sheet, roundtrip):
+    sheet["A1"] = "Regional sales, third quarter 2026, by close date"
+    sheet["A2"] = "North"
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.merge_cells(cells="A1:G1")
+
+    toolkit.set_column_best_fit(columns=[1], ignore_merged=False)
+
+    assert roundtrip(sheet).column_dimensions["A"].width > 35
+
+
+def test_best_fit_leaves_a_width_alone_when_every_cell_is_skipped(sheet, roundtrip):
+    """Skipped is not the same as empty: a column of skipped cells is not shrunk."""
+    sheet["A1"] = "word " * 40
+    sheet["A1"].alignment = Alignment(wrap_text=True)
+    toolkit = WorksheetToolkit(sheet)
+    toolkit.set_column_width(width=30, columns=[1])
+
+    toolkit.set_column_best_fit(columns=[1])
+
+    assert roundtrip(sheet).column_dimensions["A"].width == 30
 
 
 def test_best_fit_handles_a_font_with_no_explicit_size(sheet, roundtrip):

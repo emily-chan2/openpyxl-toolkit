@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** `set_column_best_fit` skips a cell whose text does not determine the
+  width of the column holding it. Two kinds were being measured and should not have
+  been. A wrapped cell was sized to its unwrapped line, which guaranteed it never
+  wrapped: a 105 character note took a column 89 units wide. And a cell merged across
+  columns was sized as if its text sat in the top-left cell alone, so a banner merged
+  over seven columns widened the first one to hold all of it. Both are now left out,
+  and `ignore_wrapped=False` and `ignore_merged=False` put either back. A merge that
+  stays within one column is measured as before, its text being in that column.
+- A column whose every cell was skipped keeps the width it had, rather than being cut
+  to the padding. Skipped is not the same as empty, and the existing rule for an empty
+  column now covers both.
+- `ignore_rows` is no longer the answer to a merged banner, which was the reason the
+  README gave for it. The argument is unchanged and still takes a row out for any
+  reason of your own; it simply is not needed for this one. The example that used it
+  for exactly that no longer does, and produces identical widths without it.
+- `set_zoom_scale` takes its value positionally again, so `set_zoom_scale(85)` works
+  alongside `set_zoom_scale(zoom_scale=85)`. 0.1.0 made it keyword-only for uniformity
+  with the setters, but the name already says what the number is. Nothing breaks:
+  allowing a positional only widens what is accepted. `freeze_panes` was always
+  positional for the same reason, and the two are now consistent with each other.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added
