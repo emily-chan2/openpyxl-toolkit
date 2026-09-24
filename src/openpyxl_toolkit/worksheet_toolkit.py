@@ -92,160 +92,6 @@ class WorksheetToolkit:
         """Name of the sheet being worked on."""
         return f"<{type(self).__name__} {self.worksheet.title!r}>"
 
-    def freeze_panes(self, cell: str | None) -> WorksheetToolkit:
-        """Freeze the rows above and the columns left of a cell. Those rows and columns
-        then stay in view as the sheet is scrolled.
-
-        Parameters
-        ----------
-        cell : str or None
-            The top-left cell of the scrolling area, such as 'B2'. None unfreezes.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        ValueError
-            If ``cell`` is not a single cell reference, or names a cell outside
-            Excel's grid. An empty string is not a spelling of None.
-
-        Notes
-        -----
-        Unfreezing has to clear the pane and the selections together. openpyxl clears
-        the pane alone but leaves three split selections behind. This makes some
-        versions of Excel ask to repair the file. Unfreezing panes using this toolkit
-        does not have this issue.
-        """
-        if cell is None:
-            return self._unfreeze()
-
-        try:
-            column_letter, row = coordinate_from_string(cell)
-        except CellCoordinatesException:
-            raise ValueError(
-                f"cell must be one cell reference such as 'B2', got {cell!r}. "
-                "Pass None to unfreeze."
-            ) from None
-
-        check_bounds(rows=[row], columns=[column_index(column_letter)])
-
-        if (column_letter.upper(), row) == ("A", 1):
-            # Nothing is above row 1 or left of column A, so this is unfreezing.
-            return self._unfreeze()
-
-        self.worksheet.freeze_panes = f"{column_letter.upper()}{row}"
-        return self
-
-    def _unfreeze(self) -> WorksheetToolkit:
-        """Clear the pane and the split selections it left behind."""
-        self.worksheet.freeze_panes = None
-        self.worksheet.sheet_view.selection = [Selection()]
-        return self
-
-    def merge_cells(
-        self,
-        *,
-        cells: str | None = None,
-        start_row: int | None = None,
-        start_column: int | None = None,
-        end_row: int | None = None,
-        end_column: int | None = None,
-    ) -> WorksheetToolkit:
-        """Merge a rectangular range of cells into one.
-
-        The merged cell takes the value of the top-left cell; the rest are cleared.
-        Merging a range that is already merged does nothing.
-
-        Parameters
-        ----------
-        cells : str, optional
-            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
-        start_row, start_column, end_row, end_column : int, optional
-            The top-left and bottom-right corners of the block.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        ValueError
-            If both ``cells`` and the coordinates are given, or if only some of the four
-            coordinates are.
-        """
-        target = resolve_range_arguments(
-            "merge_cells", cells, start_row, start_column, end_row, end_column
-        )
-        if isinstance(target, str):
-            self.worksheet.merge_cells(range_string=target)
-        else:
-            first_row, first_column, last_row, last_column = target
-            self.worksheet.merge_cells(
-                start_row=first_row,
-                start_column=first_column,
-                end_row=last_row,
-                end_column=last_column,
-            )
-        return self
-
-    def unmerge_cells(
-        self,
-        *,
-        cells: str | None = None,
-        start_row: int | None = None,
-        start_column: int | None = None,
-        end_row: int | None = None,
-        end_column: int | None = None,
-    ) -> WorksheetToolkit:
-        """Undo a merge, taking the same arguments as ``merge_cells``.
-
-        A range that is not merged is left alone. A range that cannot be read at all
-        raises.
-
-        Parameters
-        ----------
-        cells : str, optional
-            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
-        start_row, start_column, end_row, end_column : int, optional
-            The top-left and bottom-right corners of the block.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        ValueError
-            If both ``cells`` and the coordinates are given, or if only some of the four
-            coordinates are.
-        """
-        target = resolve_range_arguments(
-            "unmerge_cells", cells, start_row, start_column, end_row, end_column
-        )
-        if isinstance(target, str):
-            if CellRange(target) not in self.worksheet.merged_cells.ranges:
-                return self
-            self.worksheet.unmerge_cells(range_string=target)
-        else:
-            first_row, first_column, last_row, last_column = target
-            block = CellRange(
-                min_col=first_column,
-                min_row=first_row,
-                max_col=last_column,
-                max_row=last_row,
-            )
-            if block not in self.worksheet.merged_cells.ranges:
-                return self
-            self.worksheet.unmerge_cells(
-                start_row=first_row,
-                start_column=first_column,
-                end_row=last_row,
-                end_column=last_column,
-            )
-        return self
-
     def set_alignment(
         self,
         *,
@@ -619,229 +465,6 @@ class WorksheetToolkit:
 
         return self
 
-    def set_column_best_fit(
-        self,
-        *,
-        columns: IndexSelection = None,
-        padding: float = 0,
-        ignore_rows: Iterable[int] | None = None,
-        ignore_formulas: bool = True,
-        ignore_wrapped: bool = True,
-        ignore_merged: bool = True,
-        min_width: float | None = None,
-        max_width: float | None = None,
-    ) -> WorksheetToolkit:
-        """Widen each column to fit its widest cell.
-
-        Every character is measured at its own width in the font being used. Excel's
-        own formula turns the total into a column width:
-
-            width = (pixels of text + 5 padding pixels) / max digit width
-
-        A column with nothing in it is left alone rather than shrunk.
-
-        Parameters
-        ----------
-        columns : list of int, optional
-            Column numbers to fit. Defaults to every column in use.
-        padding : float, optional
-            Extra width on top of the fitted value. Defaults to 0; Excel's own 5
-            pixels of cell padding are already part of the formula.
-        ignore_rows : list of int, optional
-            Row numbers to leave out when measuring, for a judgement this method
-            cannot make on its own: a long unmerged title, a totals row with a
-            wordy label, one outlier that would double the column.
-        ignore_formulas : bool, optional
-            True, the default, leaves formula cells unmeasured. The formula text is
-            not what the reader sees, so measuring it oversizes the column.
-        ignore_wrapped : bool, optional
-            True, the default, leaves cells with ``wrap_text`` unmeasured. False
-            widens the column to fit the text, resulting in cell contents on a single
-            line.
-        ignore_merged : bool, optional
-            True, the default, leaves a cell merged across columns unmeasured.
-            False measures it, widening the one column that holds the value to
-            fit text the reader sees spread across the merge. A merge running
-            down a single column is measured either way.
-        min_width : float, optional
-            Lower bound on the result.
-        max_width : float, optional
-            Upper bound. Defaults to Excel's own maximum of 255.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        TypeError
-            If ``columns`` is given a single number rather than a list, or an index that
-            is not an integer.
-        ValueError
-            If a column falls outside Excel's grid.
-
-        Notes
-        -----
-        Only dates and times are rendered as Excel displays them. Other number formats
-        are measured as the value is stored, so a currency or percentage column may
-        come out narrower than it needs to be.
-
-        Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
-        Garamond, Georgia, Inter, Open Sans, Palatino, Roboto, Segoe UI, Tahoma, Times
-        New Roman, and Verdana, along with Helvetica, Book Antiqua and the open faces
-        drawn to match them. Any other face is measured with Verdana's character
-        widths. Verdana is the widest of them so an unmeasurable face errs wide; a
-        column that comes out wrong can be set directly with ``set_column_width``.
-        """
-        ws = self.worksheet
-        if columns is None:
-            columns = list(range(1, ws.max_column + 1))
-        else:
-            columns = as_indexes(columns, "columns")
-        # Before any ws.cell() call: materialising an out-of-grid cell makes the
-        # workbook permanently unsaveable, so a later failure would come too late.
-        check_bounds(columns=columns)
-        ignore_rows = set() if ignore_rows is None else set(ignore_rows)
-        normal_font = workbook_normal_font(self.worksheet)
-        # Read once rather than per cell. Only the top-left of a merge holds the
-        # value; the rest are MergedCells with none, and are skipped anyway.
-        spanning_merges = (
-            {(r.min_row, r.min_col) for r in ws.merged_cells.ranges if r.max_col > r.min_col}
-            if ignore_merged
-            else set()
-        )
-
-        for col in columns:
-            excel_width = 0.0
-            measured_anything = False
-            for row in range(1, ws.max_row + 1):
-                if row in ignore_rows:
-                    continue
-
-                cell = ws.cell(row=row, column=col)
-
-                if ignore_formulas and cell.data_type == "f":
-                    continue
-
-                if cell.value is None:
-                    continue
-
-                if (row, col) in spanning_merges:
-                    continue
-
-                if ignore_wrapped and cell.alignment.wrap_text:
-                    continue
-
-                measured_anything = True
-                # A cell that inherits the workbook font reports neither name nor
-                # size of its own, which Font(bold=True) alone is enough to produce.
-                font = (
-                    cell.font.name or normal_font[0],
-                    normal_font[1] if cell.font.sz is None else cell.font.sz,
-                )
-                excel_width = max(
-                    measure_text(displayed_text(cell), font, normal_font), excel_width
-                )
-
-            if not measured_anything:
-                # Nothing to fit. Leaving the column alone matters because a width
-                # set deliberately beforehand would otherwise be cut to the padding.
-                continue
-
-            width = excel_width + padding
-            if min_width is not None:
-                width = max(width, min_width)
-            ws.column_dimensions[get_column_letter(col)].width = min(
-                width, MAX_COLUMN_WIDTH if max_width is None else max_width
-            )
-
-        return self
-
-    def set_column_width(self, *, width: float, columns: IndexSelection = None) -> WorksheetToolkit:
-        """Set the width of one or more columns.
-
-        Parameters
-        ----------
-        width : float
-            Column width in Excel character units, not pixels. Required: there is no
-            existing value to leave alone, so omitting it cannot mean anything. A
-            width of 0 hides the column.
-        columns : list of int, optional
-            Column numbers to modify. Defaults to every column in use.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        TypeError
-            If ``columns`` is given a single number rather than a list, or an index that
-            is not an integer.
-        ValueError
-            If ``width`` is negative, or if a column falls outside Excel's grid.
-        """
-        if width < 0:
-            raise ValueError(f"width must not be negative, got {width}")
-
-        if columns is None:
-            columns = list(range(1, self.worksheet.max_column + 1))
-        else:
-            columns = as_indexes(columns, "columns")
-        check_bounds(columns=columns)
-        width = min(width, MAX_COLUMN_WIDTH)
-        for col in columns:
-            # get_column_letter rather than a cell lookup: row 1 of the column
-            # may be a MergedCell, which has no column_letter at all.
-            dimension = self.worksheet.column_dimensions[get_column_letter(col)]
-            # openpyxl cannot persist a zero width -- the writer drops any falsy
-            # dimension -- so the only way to honour it is to hide the column.
-            if width == 0:
-                dimension.hidden = True
-            else:
-                dimension.width = width
-        return self
-
-    def set_row_height(self, *, height: float, rows: IndexSelection = None) -> WorksheetToolkit:
-        """Set the height of one or more rows.
-
-        Parameters
-        ----------
-        height : float
-            Row height in points. Required, for the same reason as the column width.
-            A height of 0 hides the row.
-        rows : list of int, optional
-            Row numbers to modify. Defaults to every row in use.
-
-        Returns
-        -------
-        WorksheetToolkit
-
-        Raises
-        ------
-        TypeError
-            If ``rows`` is given a single number rather than a list, or an index that is
-            not an integer.
-        ValueError
-            If ``height`` is negative, or if a row falls outside Excel's grid.
-        """
-        if height < 0:
-            raise ValueError(f"height must not be negative, got {height}")
-
-        if rows is None:
-            rows = list(range(1, self.worksheet.max_row + 1))
-        else:
-            rows = as_indexes(rows, "rows")
-        check_bounds(rows=rows)
-        height = min(height, MAX_ROW_HEIGHT)
-        for row in rows:
-            dimension = self.worksheet.row_dimensions[row]
-            if height == 0:
-                dimension.hidden = True
-            else:
-                dimension.height = height
-        return self
-
     def set_fill(
         self,
         *,
@@ -1172,6 +795,383 @@ class WorksheetToolkit:
         # construct, and assigning a string cannot fail part-way through a range.
         for cell in iter_cells(self.worksheet, rows, columns, intersections_only, cells):
             cell.number_format = number_format
+        return self
+
+    def set_column_width(self, *, width: float, columns: IndexSelection = None) -> WorksheetToolkit:
+        """Set the width of one or more columns.
+
+        Parameters
+        ----------
+        width : float
+            Column width in Excel character units, not pixels. Required: there is no
+            existing value to leave alone, so omitting it cannot mean anything. A
+            width of 0 hides the column.
+        columns : list of int, optional
+            Column numbers to modify. Defaults to every column in use.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``columns`` is given a single number rather than a list, or an index that
+            is not an integer.
+        ValueError
+            If ``width`` is negative, or if a column falls outside Excel's grid.
+        """
+        if width < 0:
+            raise ValueError(f"width must not be negative, got {width}")
+
+        if columns is None:
+            columns = list(range(1, self.worksheet.max_column + 1))
+        else:
+            columns = as_indexes(columns, "columns")
+        check_bounds(columns=columns)
+        width = min(width, MAX_COLUMN_WIDTH)
+        for col in columns:
+            # get_column_letter rather than a cell lookup: row 1 of the column
+            # may be a MergedCell, which has no column_letter at all.
+            dimension = self.worksheet.column_dimensions[get_column_letter(col)]
+            # openpyxl cannot persist a zero width -- the writer drops any falsy
+            # dimension -- so the only way to honour it is to hide the column.
+            if width == 0:
+                dimension.hidden = True
+            else:
+                dimension.width = width
+        return self
+
+    def set_row_height(self, *, height: float, rows: IndexSelection = None) -> WorksheetToolkit:
+        """Set the height of one or more rows.
+
+        Parameters
+        ----------
+        height : float
+            Row height in points. Required, for the same reason as the column width.
+            A height of 0 hides the row.
+        rows : list of int, optional
+            Row numbers to modify. Defaults to every row in use.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` is given a single number rather than a list, or an index that is
+            not an integer.
+        ValueError
+            If ``height`` is negative, or if a row falls outside Excel's grid.
+        """
+        if height < 0:
+            raise ValueError(f"height must not be negative, got {height}")
+
+        if rows is None:
+            rows = list(range(1, self.worksheet.max_row + 1))
+        else:
+            rows = as_indexes(rows, "rows")
+        check_bounds(rows=rows)
+        height = min(height, MAX_ROW_HEIGHT)
+        for row in rows:
+            dimension = self.worksheet.row_dimensions[row]
+            if height == 0:
+                dimension.hidden = True
+            else:
+                dimension.height = height
+        return self
+
+    def set_column_best_fit(
+        self,
+        *,
+        columns: IndexSelection = None,
+        padding: float = 0,
+        ignore_rows: Iterable[int] | None = None,
+        ignore_formulas: bool = True,
+        ignore_wrapped: bool = True,
+        ignore_merged: bool = True,
+        min_width: float | None = None,
+        max_width: float | None = None,
+    ) -> WorksheetToolkit:
+        """Widen each column to fit its widest cell.
+
+        Every character is measured at its own width in the font being used. Excel's
+        own formula turns the total into a column width:
+
+            width = (pixels of text + 5 padding pixels) / max digit width
+
+        A column with nothing in it is left alone rather than shrunk.
+
+        Parameters
+        ----------
+        columns : list of int, optional
+            Column numbers to fit. Defaults to every column in use.
+        padding : float, optional
+            Extra width on top of the fitted value. Defaults to 0; Excel's own 5
+            pixels of cell padding are already part of the formula.
+        ignore_rows : list of int, optional
+            Row numbers to leave out when measuring, for a judgement this method
+            cannot make on its own: a long unmerged title, a totals row with a
+            wordy label, one outlier that would double the column.
+        ignore_formulas : bool, optional
+            True, the default, leaves formula cells unmeasured. The formula text is
+            not what the reader sees, so measuring it oversizes the column.
+        ignore_wrapped : bool, optional
+            True, the default, leaves cells with ``wrap_text`` unmeasured. False
+            widens the column to fit the text, resulting in cell contents on a single
+            line.
+        ignore_merged : bool, optional
+            True, the default, leaves a cell merged across columns unmeasured.
+            False measures it, widening the one column that holds the value to
+            fit text the reader sees spread across the merge. A merge running
+            down a single column is measured either way.
+        min_width : float, optional
+            Lower bound on the result.
+        max_width : float, optional
+            Upper bound. Defaults to Excel's own maximum of 255.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``columns`` is given a single number rather than a list, or an index that
+            is not an integer.
+        ValueError
+            If a column falls outside Excel's grid.
+
+        Notes
+        -----
+        Only dates and times are rendered as Excel displays them. Other number formats
+        are measured as the value is stored, so a currency or percentage column may
+        come out narrower than it needs to be.
+
+        Built-in metrics cover Aptos, Arial, Calibri, Cambria, Courier New, Futura,
+        Garamond, Georgia, Inter, Open Sans, Palatino, Roboto, Segoe UI, Tahoma, Times
+        New Roman, and Verdana, along with Helvetica, Book Antiqua and the open faces
+        drawn to match them. Any other face is measured with Verdana's character
+        widths. Verdana is the widest of them so an unmeasurable face errs wide; a
+        column that comes out wrong can be set directly with ``set_column_width``.
+        """
+        ws = self.worksheet
+        if columns is None:
+            columns = list(range(1, ws.max_column + 1))
+        else:
+            columns = as_indexes(columns, "columns")
+        # Before any ws.cell() call: materialising an out-of-grid cell makes the
+        # workbook permanently unsaveable, so a later failure would come too late.
+        check_bounds(columns=columns)
+        ignore_rows = set() if ignore_rows is None else set(ignore_rows)
+        normal_font = workbook_normal_font(self.worksheet)
+        # Read once rather than per cell. Only the top-left of a merge holds the
+        # value; the rest are MergedCells with none, and are skipped anyway.
+        spanning_merges = (
+            {(r.min_row, r.min_col) for r in ws.merged_cells.ranges if r.max_col > r.min_col}
+            if ignore_merged
+            else set()
+        )
+
+        for col in columns:
+            excel_width = 0.0
+            measured_anything = False
+            for row in range(1, ws.max_row + 1):
+                if row in ignore_rows:
+                    continue
+
+                cell = ws.cell(row=row, column=col)
+
+                if ignore_formulas and cell.data_type == "f":
+                    continue
+
+                if cell.value is None:
+                    continue
+
+                if (row, col) in spanning_merges:
+                    continue
+
+                if ignore_wrapped and cell.alignment.wrap_text:
+                    continue
+
+                measured_anything = True
+                # A cell that inherits the workbook font reports neither name nor
+                # size of its own, which Font(bold=True) alone is enough to produce.
+                font = (
+                    cell.font.name or normal_font[0],
+                    normal_font[1] if cell.font.sz is None else cell.font.sz,
+                )
+                excel_width = max(
+                    measure_text(displayed_text(cell), font, normal_font), excel_width
+                )
+
+            if not measured_anything:
+                # Nothing to fit. Leaving the column alone matters because a width
+                # set deliberately beforehand would otherwise be cut to the padding.
+                continue
+
+            width = excel_width + padding
+            if min_width is not None:
+                width = max(width, min_width)
+            ws.column_dimensions[get_column_letter(col)].width = min(
+                width, MAX_COLUMN_WIDTH if max_width is None else max_width
+            )
+
+        return self
+
+    def merge_cells(
+        self,
+        *,
+        cells: str | None = None,
+        start_row: int | None = None,
+        start_column: int | None = None,
+        end_row: int | None = None,
+        end_column: int | None = None,
+    ) -> WorksheetToolkit:
+        """Merge a rectangular range of cells into one.
+
+        The merged cell takes the value of the top-left cell; the rest are cleared.
+        Merging a range that is already merged does nothing.
+
+        Parameters
+        ----------
+        cells : str, optional
+            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
+        start_row, start_column, end_row, end_column : int, optional
+            The top-left and bottom-right corners of the block.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If both ``cells`` and the coordinates are given, or if only some of the four
+            coordinates are.
+        """
+        target = resolve_range_arguments(
+            "merge_cells", cells, start_row, start_column, end_row, end_column
+        )
+        if isinstance(target, str):
+            self.worksheet.merge_cells(range_string=target)
+        else:
+            first_row, first_column, last_row, last_column = target
+            self.worksheet.merge_cells(
+                start_row=first_row,
+                start_column=first_column,
+                end_row=last_row,
+                end_column=last_column,
+            )
+        return self
+
+    def unmerge_cells(
+        self,
+        *,
+        cells: str | None = None,
+        start_row: int | None = None,
+        start_column: int | None = None,
+        end_row: int | None = None,
+        end_column: int | None = None,
+    ) -> WorksheetToolkit:
+        """Undo a merge, taking the same arguments as ``merge_cells``.
+
+        A range that is not merged is left alone. A range that cannot be read at all
+        raises.
+
+        Parameters
+        ----------
+        cells : str, optional
+            The range, such as 'A1:C3'. Give this or all four coordinates, not both.
+        start_row, start_column, end_row, end_column : int, optional
+            The top-left and bottom-right corners of the block.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If both ``cells`` and the coordinates are given, or if only some of the four
+            coordinates are.
+        """
+        target = resolve_range_arguments(
+            "unmerge_cells", cells, start_row, start_column, end_row, end_column
+        )
+        if isinstance(target, str):
+            if CellRange(target) not in self.worksheet.merged_cells.ranges:
+                return self
+            self.worksheet.unmerge_cells(range_string=target)
+        else:
+            first_row, first_column, last_row, last_column = target
+            block = CellRange(
+                min_col=first_column,
+                min_row=first_row,
+                max_col=last_column,
+                max_row=last_row,
+            )
+            if block not in self.worksheet.merged_cells.ranges:
+                return self
+            self.worksheet.unmerge_cells(
+                start_row=first_row,
+                start_column=first_column,
+                end_row=last_row,
+                end_column=last_column,
+            )
+        return self
+
+    def freeze_panes(self, cell: str | None) -> WorksheetToolkit:
+        """Freeze the rows above and the columns left of a cell. Those rows and columns
+        then stay in view as the sheet is scrolled.
+
+        Parameters
+        ----------
+        cell : str or None
+            The top-left cell of the scrolling area, such as 'B2'. None unfreezes.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        ValueError
+            If ``cell`` is not a single cell reference, or names a cell outside
+            Excel's grid. An empty string is not a spelling of None.
+
+        Notes
+        -----
+        Unfreezing has to clear the pane and the selections together. openpyxl clears
+        the pane alone but leaves three split selections behind. This makes some
+        versions of Excel ask to repair the file. Unfreezing panes using this toolkit
+        does not have this issue.
+        """
+        if cell is None:
+            return self._unfreeze()
+
+        try:
+            column_letter, row = coordinate_from_string(cell)
+        except CellCoordinatesException:
+            raise ValueError(
+                f"cell must be one cell reference such as 'B2', got {cell!r}. "
+                "Pass None to unfreeze."
+            ) from None
+
+        check_bounds(rows=[row], columns=[column_index(column_letter)])
+
+        if (column_letter.upper(), row) == ("A", 1):
+            # Nothing is above row 1 or left of column A, so this is unfreezing.
+            return self._unfreeze()
+
+        self.worksheet.freeze_panes = f"{column_letter.upper()}{row}"
+        return self
+
+    def _unfreeze(self) -> WorksheetToolkit:
+        """Clear the pane and the split selections it left behind."""
+        self.worksheet.freeze_panes = None
+        self.worksheet.sheet_view.selection = [Selection()]
         return self
 
     def set_autofilter(
