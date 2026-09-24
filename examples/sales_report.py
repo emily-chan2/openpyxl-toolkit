@@ -163,13 +163,9 @@ def build(path):
     toolkit.set_font(cells=f"A{NOTE_ROW}", size=9, italic=True, color="#6b7280")
     toolkit.set_alignment(cells=f"A{NOTE_ROW}", wrap_text=True, vertical="top")
 
-    # Fit the columns to what the reader sees. The banner rows are left out, or
-    # column A would be sized to the whole title
-    toolkit.set_column_best_fit(
-        ignore_rows=[TITLE_ROW, SUBTITLE_ROW, NOTE_ROW],
-        padding=1.5,
-        min_width=9,
-    )
+    # Set the column best fit. ignore_merged=True (the default) makes it so the
+    # banner rows are not taken into account
+    toolkit.set_column_best_fit(padding=1.5, min_width=9)
     # The revenue column holds formulas, which best fit skips: the formula text is
     # not what the reader sees. Its width comes from the widest result instead
     toolkit.set_column_width(columns=[6], width=14)

@@ -372,9 +372,13 @@ def test_the_unchanged_sentinel_reads_as_words(sheet):
     assert "object object at" not in str(inspect.signature(WorksheetToolkit.set_font))
 
 
-def test_zoom_scale_is_keyword_only(sheet):
-    with pytest.raises(TypeError):
-        WorksheetToolkit(sheet).set_zoom_scale(85)
+def test_zoom_scale_takes_its_value_positionally_or_by_keyword(sheet, roundtrip):
+    """One argument the method name already explains, so the keyword is optional."""
+    WorksheetToolkit(sheet).set_zoom_scale(85)
+    assert roundtrip(sheet).sheet_view.zoomScale == 85
+
+    WorksheetToolkit(sheet).set_zoom_scale(zoom_scale=140)
+    assert roundtrip(sheet).sheet_view.zoomScale == 140
 
 
 @pytest.mark.parametrize(
