@@ -139,7 +139,9 @@ Giving both `cells` and `rows`/`columns` raises.
 
 ### Column letters and numbers
 
-`rows` and `columns` take numbers, so there is a pair for converting either way.
+Because column letters can be hard to work with, we have provided a pair of
+functions for conversion. openpyxl has its own versions in `openpyxl.utils`, but
+under names that are more difficult to remember.
 
 ```python
 >>> from openpyxl_toolkit import column_letter, column_index
@@ -148,10 +150,6 @@ Giving both `cells` and `rows`/`columns` raises.
 >>> column_index("C")   # 3
 >>> toolkit.set_column_width(width=18, columns=[column_index("D")])
 ```
-
-openpyxl has its own pair of methods in `openpyxl.utils`, but they run off the
-end of the grid. `get_column_letter(16385)` returns `"XFE"`, and a workbook
-using that column will not open. These stop at `XFD`, column 16,384.
 
 ## Type hints
 

@@ -12,7 +12,6 @@ from copy import copy
 from typing import cast, get_args
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.utils.exceptions import CellCoordinatesException
 from openpyxl.worksheet.cell_range import CellRange
@@ -41,7 +40,7 @@ from ._types import (
     Underline,
     VerticalAlignment,
 )
-from .columns import column_index
+from .columns import column_index, column_letter
 
 __all__ = ["WorksheetToolkit"]
 
@@ -831,9 +830,9 @@ class WorksheetToolkit:
         check_bounds(columns=columns)
         width = min(width, MAX_COLUMN_WIDTH)
         for col in columns:
-            # get_column_letter rather than a cell lookup: row 1 of the column
-            # may be a MergedCell, which has no column_letter at all.
-            dimension = self.worksheet.column_dimensions[get_column_letter(col)]
+            # column_letter rather than a cell lookup: row 1 of the column may be
+            # a MergedCell, which has no column_letter attribute at all.
+            dimension = self.worksheet.column_dimensions[column_letter(col)]
             # openpyxl cannot persist a zero width -- the writer drops any falsy
             # dimension -- so the only way to honour it is to hide the column.
             if width == 0:
@@ -1014,7 +1013,7 @@ class WorksheetToolkit:
             width = excel_width + padding
             if min_width is not None:
                 width = max(width, min_width)
-            ws.column_dimensions[get_column_letter(col)].width = min(
+            ws.column_dimensions[column_letter(col)].width = min(
                 width, MAX_COLUMN_WIDTH if max_width is None else max_width
             )
 
@@ -1055,9 +1054,12 @@ class WorksheetToolkit:
             "merge_cells", cells, start_row, start_column, end_row, end_column
         )
         if isinstance(target, str):
+            rows, columns = resolve_cells(self.worksheet, target)
+            check_bounds(rows=rows, columns=columns)
             self.worksheet.merge_cells(range_string=target)
         else:
             first_row, first_column, last_row, last_column = target
+            check_bounds(rows=(first_row, last_row), columns=(first_column, last_column))
             self.worksheet.merge_cells(
                 start_row=first_row,
                 start_column=first_column,
@@ -1101,11 +1103,14 @@ class WorksheetToolkit:
             "unmerge_cells", cells, start_row, start_column, end_row, end_column
         )
         if isinstance(target, str):
+            rows, columns = resolve_cells(self.worksheet, target)
+            check_bounds(rows=rows, columns=columns)
             if CellRange(target) not in self.worksheet.merged_cells.ranges:
                 return self
             self.worksheet.unmerge_cells(range_string=target)
         else:
             first_row, first_column, last_row, last_column = target
+            check_bounds(rows=(first_row, last_row), columns=(first_column, last_column))
             block = CellRange(
                 min_col=first_column,
                 min_row=first_row,
@@ -1251,8 +1256,7 @@ class WorksheetToolkit:
             first_row, first_column, last_row, last_column = target
             check_bounds(rows=(first_row, last_row), columns=(first_column, last_column))
             self.worksheet.auto_filter.ref = (
-                f"{get_column_letter(first_column)}{first_row}"
-                f":{get_column_letter(last_column)}{last_row}"
+                f"{column_letter(first_column)}{first_row}:{column_letter(last_column)}{last_row}"
             )
         return self
 
