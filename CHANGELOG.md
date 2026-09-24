@@ -7,22 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-
-- **Breaking:** `set_column_best_fit` no longer takes a `measure` argument. It was a
-  hook for supplying your own text measurement, meant for a font with no built-in
-  table, and it did not earn its place. The callable was invoked for every cell rather
-  than only the unmeasured ones, so overriding one face meant handling all sixteen, and
-  the built-in measurement it would have delegated to was private, so there was no way
-  to hand the rest back. A face with no table has three better answers: open an issue to
-  have it added, set that column with `set_column_width`, or bound the result with
-  `min_width` and `max_width`.
-- The trade that removal makes: a licensed or in-house face that cannot be contributed
-  upstream loses its one exact option, and falls back to setting widths directly. That
-  is judged the right trade at sixteen faces and rising, but it is a trade rather than a
-  free removal. Measurement itself is unchanged, and widths are identical for anyone who
-  was not passing `measure`.
-
 ### Changed
 
 - **Breaking:** `set_column_best_fit` skips a cell whose text does not determine the
@@ -45,6 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the setters, but the name already says what the number is. Nothing breaks:
   allowing a positional only widens what is accepted. `freeze_panes` was always
   positional for the same reason, and the two are now consistent with each other.
+
+### Removed
+
+- **Breaking:** `set_column_best_fit` no longer takes a `measure` argument. It was a
+  hook for supplying your own text measurement, meant for a font with no built-in
+  table, and it did not earn its place. The callable was invoked for every cell rather
+  than only the unmeasured ones, so overriding one face meant handling all sixteen, and
+  the built-in measurement it would have delegated to was private, so there was no way
+  to hand the rest back. A face with no table has three better answers: open an issue to
+  have it added, set that column with `set_column_width`, or bound the result with
+  `min_width` and `max_width`.
+- The trade that removal makes: a licensed or in-house face that cannot be contributed
+  upstream loses its one exact option, and falls back to setting widths directly. That
+  is judged the right trade at sixteen faces and rising, but it is a trade rather than a
+  free removal. Measurement itself is unchanged, and widths are identical for anyone who
+  was not passing `measure`.
 
 ## [0.2.0] - 2026-09-23
 
