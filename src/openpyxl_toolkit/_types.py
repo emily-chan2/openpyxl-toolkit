@@ -25,6 +25,10 @@ IndexSelection: TypeAlias = "Iterable[int] | None"
 #: A font as ``(name, point size)``.
 FontSpec: TypeAlias = "tuple[str, float]"
 
+#: What a sheet's tab shows. Excel spells the third "veryHidden"; this spells it
+#: the way every other multi-word value in the package is spelled.
+SheetState: TypeAlias = Literal["visible", "hidden", "very_hidden"]
+
 HorizontalAlignment: TypeAlias = Literal[
     "general",
     "left",

@@ -5,6 +5,46 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Four sheet-level methods (the part of a worksheet that is not a cell):
+  `set_tab_color`, `set_gridline_visibility`, `set_autofilter` and
+  `set_sheet_visibility`.
+- `set_tab_color` takes a hex color through the same normalizer as every other color in
+  the package, so it is stored fully opaque. Assigning a six digit hex to openpyxl
+  directly stores it with an alpha of 00, which is transparent. `None` clears the color.
+- `set_autofilter` puts Excel's filter controls on a range, named as `cells` or as the
+  four coordinates, the way `merge_cells` takes a range. `cells=None` removes them.
+  Naming a range is required, and it can be a block, `'A1:C10'`, or whole columns,
+  `'A:C'`. Whole columns are the sturdier choice while rows are still being written:
+  Excel works out the extent on opening, so the filter covers the data however much of
+  it there turns out to be. Whole rows, `'1:5'`, are not a form Excel has, and say so
+  rather than surfacing openpyxl's raw pattern. A range outside Excel's grid is rejected.
+- `set_sheet_visibility` takes `'visible'`, `'hidden'` or `'very_hidden'`. The last is
+  Excel's `veryHidden` and it omits the sheet under right-click->Unhide.
+  The sheet is hidden Excel's interface and nothing else; the sheet stays in the file in
+  plain text and anything that opens the workbook still reads it.
+
+### Changed
+
+- **Breaking:** `freeze_panes` rejects anything that is not one cell reference. An empty
+  string used to be accepted and was worse than useless: openpyxl cleared the pane and
+  left three split selections behind, where a sheet that was never frozen has one, and
+  those are what make some versions of Excel offer to repair the file. `'A1'` had the
+  same fault and is a reference someone would reasonably write, since it names a
+  scrolling area starting at the corner. Both now go through the same unfreezing code as
+  `None`, and the three produce byte-identical files.
+- **Breaking:** `freeze_panes` has no default. Unfreezing is spelled `freeze_panes(None)`
+  rather than `freeze_panes()`.
+- **Breaking:** `set_zoom_scale` has no default. A sheet is already at some zoom, so
+  omitting the value has nothing to mean.
+- `freeze_panes` accepts a lower case reference and stores it upper case, as the range
+  arguments already did, and rejects a cell outside Excel's grid rather than writing it.
+  A bad reference now names itself instead of surfacing openpyxl's `invalid literal for
+  int() with base 10`.
+
 ## [0.3.0] - 2026-09-24
 
 ### Changed

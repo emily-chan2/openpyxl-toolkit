@@ -122,8 +122,19 @@ using that column will not open. These stop at `XFD`, column 16,384.
 | `merge_cells` / `unmerge_cells` | a merged range |
 | `freeze_panes` | rows above and columns left of a cell stay visible |
 | `set_zoom_scale` | the zoom level when the reader opens the file: 10 to 400 |
+| `set_tab_color` | the color of the sheet's tab |
+| `set_gridline_visibility` | whether the grid between cells is drawn on screen |
+| `set_autofilter` | Excel's filter controls on a range |
+| `set_sheet_visibility` | whether the sheet is shown, hidden, or hidden from the unhide list too |
 
-Each method returns the toolkit, so calls chain. Most parameters are
+```python
+>>> toolkit.set_tab_color("#1d3557")
+>>> toolkit.set_gridline_visibility(visible=False)
+>>> toolkit.set_autofilter(cells="A1:C3")
+>>> toolkit.set_sheet_visibility(state="hidden")
+```
+
+Each method returns the toolkit, so calls can chain. Most parameters are
 keyword-only.
 
 Anything not named is left as is. `None` is not the same as leaving out an
