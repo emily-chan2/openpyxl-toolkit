@@ -9,7 +9,7 @@ it gains and this file has not caught up with raises rather than corrupts.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Literal, TypeAlias
 
 if TYPE_CHECKING:
@@ -24,9 +24,6 @@ IndexSelection: TypeAlias = "Iterable[int] | None"
 
 #: A font as ``(name, point size)``.
 FontSpec: TypeAlias = "tuple[str, float]"
-
-#: ``measure(text, font, normal_font) -> column width``.
-MeasureText: TypeAlias = Callable[[str, FontSpec, FontSpec], float]
 
 HorizontalAlignment: TypeAlias = Literal[
     "general",

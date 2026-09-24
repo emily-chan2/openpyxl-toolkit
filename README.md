@@ -150,10 +150,11 @@ New Roman and Verdana. Helvetica, Book Antiqua, Selawik, Arimo, Carlito, Tinos,
 Cousine, Caladea and the Liberation faces are recognized too, each sharing the
 table of the face it matches advance for advance.
 
-Any other face is measured with Verdana's character widths unless `measure` is
-given. Verdana is the widest of them, so a face with no metrics errs wide: a
-column that is too narrow hides what it holds, while one that is too wide only
-looks untidy.
+Any other face is measured with Verdana's character widths. Verdana is the
+widest of them, so a face with no metrics errs wide: a column that is too narrow
+hides what it holds, while one that is too wide only looks untidy. If that is
+not what you want for a particular column, set its width directly with
+`set_column_width`, or open an issue to have the face added to the table.
 
 Four things to note:
 - A wrapped cell is skipped. Wrapping exists so text conforms to the column, so

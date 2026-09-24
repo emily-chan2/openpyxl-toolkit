@@ -34,7 +34,6 @@ from ._types import (
     FillType,
     HorizontalAlignment,
     IndexSelection,
-    MeasureText,
     ReadingOrder,
     Underline,
     VerticalAlignment,
@@ -595,7 +594,6 @@ class WorksheetToolkit:
         ignore_merged: bool = True,
         min_width: float | None = None,
         max_width: float | None = None,
-        measure: MeasureText | None = None,
     ) -> WorksheetToolkit:
         """Widen each column to fit its widest cell.
 
@@ -633,11 +631,6 @@ class WorksheetToolkit:
             Lower bound on the result.
         max_width : float, optional
             Upper bound. Defaults to Excel's own maximum of 255.
-        measure : callable, optional
-            ``measure(text, font, normal_font) -> width``, where each font is a
-            ``(name, point_size)`` pair: the cell's own font, and the workbook's normal
-            font that Excel's width unit is defined in. Supply this for a font face with
-            no built-in table.
 
         Returns
         -------
@@ -661,8 +654,8 @@ class WorksheetToolkit:
         Garamond, Georgia, Inter, Open Sans, Palatino, Roboto, Segoe UI, Tahoma, Times
         New Roman, and Verdana, along with Helvetica, Book Antiqua and the open faces
         drawn to match them. Any other face is measured with Verdana's character
-        widths unless ``measure`` is given. Verdana is the widest of them so an
-        unmeasurable face errs wide.
+        widths. Verdana is the widest of them so an unmeasurable face errs wide; a
+        column that comes out wrong can be set directly with ``set_column_width``.
         """
         ws = self.worksheet
         if columns is None:
@@ -682,7 +675,6 @@ class WorksheetToolkit:
             else set()
         )
 
-        measure = measure or measure_text
         for col in columns:
             excel_width = 0.0
             measured_anything = False
@@ -711,7 +703,9 @@ class WorksheetToolkit:
                     cell.font.name or normal_font[0],
                     normal_font[1] if cell.font.sz is None else cell.font.sz,
                 )
-                excel_width = max(measure(displayed_text(cell), font, normal_font), excel_width)
+                excel_width = max(
+                    measure_text(displayed_text(cell), font, normal_font), excel_width
+                )
 
             if not measured_anything:
                 # Nothing to fit. Leaving the column alone matters because a width
