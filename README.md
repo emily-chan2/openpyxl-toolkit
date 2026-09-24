@@ -109,23 +109,35 @@ using that column will not open. These stop at `XFD`, column 16,384.
 
 ## Methods
 
+### Cell formatting
+
 | Method | What it sets |
 | --- | --- |
-| `set_font` | name, size, bold, italic, underline, strike, color |
-| `set_fill` | fill_type, start_color, end_color |
 | `set_alignment` | horizontal, vertical, text_rotation, wrap_text, shrink_to_fit, indent, reading_order |
-| `set_number_format` | how a value is displayed: currency, percent, dates, decimal places |
 | `set_border` | style and color, on any of six sides |
 | `set_outside_border` | one border around the edge of a block, leaving the inside alone |
+| `set_fill` | fill_type, start_color, end_color |
+| `set_font` | name, size, bold, italic, underline, strike, color |
+| `set_number_format` | how a value is displayed: currency, percent, dates, decimal places |
+
+### Row and column formatting
+
+| Method | What it sets |
+| --- | --- |
 | `set_column_width` / `set_row_height` | an explicit size; 0 hides the column or row |
 | `set_column_best_fit` | a column width that fits the widest cell |
 | `merge_cells` / `unmerge_cells` | a merged range |
+
+### Sheet-level controls
+
+| Method | What it sets |
+| --- | --- |
 | `freeze_panes` | rows above and columns left of a cell stay visible |
-| `set_zoom_scale` | the zoom level when the reader opens the file: 10 to 400 |
-| `set_tab_color` | the color of the sheet's tab |
-| `set_gridline_visibility` | whether the grid between cells is drawn on screen |
 | `set_autofilter` | Excel's filter controls on a range |
+| `set_gridline_visibility` | whether the grid between cells is drawn on screen |
 | `set_sheet_visibility` | whether the sheet is shown, hidden, or hidden from the unhide list too |
+| `set_tab_color` | the color of the sheet's tab |
+| `set_zoom_scale` | the zoom level when the reader opens the file: 10 to 400 |
 
 ```python
 >>> toolkit.set_tab_color("#1d3557")
