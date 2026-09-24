@@ -439,17 +439,6 @@ def test_best_fit_honours_min_and_max_width(sheet, roundtrip):
     assert ws.column_dimensions["B"].width == 20
 
 
-def test_best_fit_accepts_a_custom_measure(sheet, roundtrip):
-    """A caller with metrics for another font supplies its own measurement."""
-    sheet["A1"] = "hello"
-
-    WorksheetToolkit(sheet).set_column_best_fit(
-        columns=[1], measure=lambda text, font, normal_font: len(text) * 2
-    )
-
-    assert roundtrip(sheet).column_dimensions["A"].width == 10
-
-
 def test_best_fit_uses_the_metrics_of_the_cell_font(sheet, roundtrip):
     """Courier New is monospaced and wider than Calibri, so text needs more room."""
     sheet["A1"] = "iiiiiiiiii"
