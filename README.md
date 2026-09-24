@@ -60,53 +60,6 @@ pip install openpyxl-toolkit
 
 Python 3.10 or newer, and openpyxl 3.1 or newer.
 
-## Choosing cells
-
-On every method that formats cells, there are 2 methods of selecting which cells
-the action should be applied to:
-1) `cells`
-2) `rows` and `columns`
-
-```python
->>> toolkit.set_fill(cells="A1:C3", fill_type="solid", start_color="#f4f6f8")
->>> toolkit.set_fill(cells="A:C", fill_type="solid", start_color="#f4f6f8")
->>> toolkit.set_fill(rows=[1, 2], columns=[1, 2], intersections_only=True,
-...                  fill_type="solid", start_color="#ffff00")
-```
-
-`cells` takes a block (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`)
-or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"`
-is normalized, and an unbounded side is filled in from the used range, so
-`"B:B"` means column B as far as the sheet goes (rather than all 1,048,576
-rows).
-
-`rows` and `columns` take lists.
-
-Given both rows and columns, `intersections_only` decides what they mean:
-
-| | Cells formatted |
-| --- | --- |
-| `intersections_only=True` (default) | where the rows and the columns cross — a block |
-| `intersections_only=False` | every cell in those rows **and** every cell in those columns — a cross |
-
-Giving both `cells` and `rows`/`columns` raises.
-
-### Column letters and numbers
-
-`rows` and `columns` take numbers, so there is a pair for converting either way.
-
-```python
->>> from openpyxl_toolkit import column_letter, column_index
-
->>> column_letter(3)    # 'C'
->>> column_index("C")   # 3
->>> toolkit.set_column_width(width=18, columns=[column_index("D")])
-```
-
-openpyxl has its own pair of methods in `openpyxl.utils`, but they run off the
-end of the grid. `get_column_letter(16385)` returns `"XFE"`, and a workbook
-using that column will not open. These stop at `XFD`, column 16,384.
-
 ## Methods
 
 ### Cell formatting
@@ -152,6 +105,53 @@ keyword-only.
 Anything not named is left as is. `None` is not the same as leaving out an
 argument: `set_font(color=None)` clears the color, while omitting `color`
 keeps whatever was there.
+
+## Cell selection
+
+On every method that formats cells, there are 2 methods of selecting which cells
+the action should be applied to:
+1) `cells`
+2) `rows` and `columns`
+
+```python
+>>> toolkit.set_fill(cells="A1:C3", fill_type="solid", start_color="#f4f6f8")
+>>> toolkit.set_fill(cells="A:C", fill_type="solid", start_color="#f4f6f8")
+>>> toolkit.set_fill(rows=[1, 2], columns=[1, 2], intersections_only=True,
+...                  fill_type="solid", start_color="#ffff00")
+```
+
+`cells` takes a block (`"A1:C3"`), whole columns (`"B:D"`), whole rows (`"2:5"`)
+or one cell (`"C3"`). Case does not matter, a reversed range such as `"C3:A1"`
+is normalized, and an unbounded side is filled in from the used range, so
+`"B:B"` means column B as far as the sheet goes (rather than all 1,048,576
+rows).
+
+`rows` and `columns` take lists.
+
+Given both rows and columns, `intersections_only` decides what they mean:
+
+| | Cells formatted |
+| --- | --- |
+| `intersections_only=True` (default) | where the rows and the columns cross — a block |
+| `intersections_only=False` | every cell in those rows **and** every cell in those columns — a cross |
+
+Giving both `cells` and `rows`/`columns` raises.
+
+### Column letters and numbers
+
+`rows` and `columns` take numbers, so there is a pair for converting either way.
+
+```python
+>>> from openpyxl_toolkit import column_letter, column_index
+
+>>> column_letter(3)    # 'C'
+>>> column_index("C")   # 3
+>>> toolkit.set_column_width(width=18, columns=[column_index("D")])
+```
+
+openpyxl has its own pair of methods in `openpyxl.utils`, but they run off the
+end of the grid. `get_column_letter(16385)` returns `"XFE"`, and a workbook
+using that column will not open. These stop at `XFD`, column 16,384.
 
 ## Type hints
 
