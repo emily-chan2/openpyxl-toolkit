@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A color that is not a hex color is turned down by the name of the argument it was
+  passed to: `start_color must be a hex color such as '#f4d2d3', got 'red'.` openpyxl's
+  own refusal is `Colors must be aRGB hex values`, which names neither the argument nor
+  the value, and which describes the eight-digit form it stores rather than the
+  six-digit one nearly everyone writes. A value made only of hex digits is told how many
+  there should be, which is what the CSS three-digit shorthand needs to hear.
+- Colors are checked once, before any cell is touched, rather than on the first cell the
+  range happens to reach. A color that is not one is a fault in the call, not in a cell,
+  so it is now reported whether or not the range picks any cells out.
+- Surrounding whitespace on a color is ignored, as case already was.
+
+### Fixed
+
+- `set_fill(fill_type='solid', start_color='')` reported that the cell had no fill color
+  and would be painted black. An empty string reads as an absent color, so the check for
+  a missing one answered first and named the wrong problem. It is now turned down as the
+  non-color it is.
+
 ## [0.4.0] - 2026-09-24
 
 ### Added

@@ -254,10 +254,10 @@ class WorksheetToolkit:
             If ``rows`` or ``columns`` is given a single number rather than a
             list, or an index that is not an integer.
         ValueError
-            If a side is not one of the six names, if a color is given for a side
-            with no line and no ``style`` to draw one, if both ``cells`` and
-            ``rows`` or ``columns`` are given, or if an index falls outside
-            Excel's grid.
+            If a side is not one of the six names, if ``color`` is not a hex color, if a
+            color is given for a side with no line and no ``style`` to draw one, if both
+            ``cells`` and ``rows`` or ``columns`` are given, or if an index falls
+            outside Excel's grid.
 
         Notes
         -----
@@ -287,6 +287,11 @@ class WorksheetToolkit:
         if unknown:
             raise ValueError(f"unknown border side(s) {unknown}. Choose from {list(_BORDER_SIDES)}")
 
+        # Normalized before the loop, because a value that is not a color is a
+        # fault in the call rather than in a cell, and should be reported whether
+        # or not the range picks any cells out.
+        color = normalize_color(color)
+
         # Built first and assigned afterwards, so a cell that cannot be given the
         # requested border does not leave the rest of the range half-drawn.
         updates = []
@@ -307,7 +312,7 @@ class WorksheetToolkit:
                         )
                     straight[side_name] = Side(
                         style=new_style,
-                        color=normalize_color(color)
+                        color=color
                         if color is not UNCHANGED
                         else getattr(current, side_name).color,
                     )
@@ -337,9 +342,7 @@ class WorksheetToolkit:
                         # Taking one direction away leaves the other drawing this
                         # line, so the line itself is only rewritten when asked for.
                         style=new_style if drawn else current.diagonal.style,
-                        color=normalize_color(color)
-                        if color is not UNCHANGED
-                        else current.diagonal.color,
+                        color=color if color is not UNCHANGED else current.diagonal.color,
                     )
             else:
                 diagonal = current.diagonal
@@ -397,8 +400,9 @@ class WorksheetToolkit:
         Raises
         ------
         ValueError
-            If both ``cells`` and the coordinates are given, if only some of the four
-            coordinates are, or if ``cells`` cannot be read as a range.
+            If both ``cells`` and the coordinates are given, if only some of the
+            four coordinates are, if ``color`` is not a hex color, or if ``cells``
+            cannot be read as a range.
 
         Examples
         --------
@@ -515,12 +519,11 @@ class WorksheetToolkit:
             If ``rows`` or ``columns`` is given a single number rather than a
             list, or an index that is not an integer.
         ValueError
-            If a color is given as None, which cannot clear a fill that always
-            carries one; if a color is given for a cell with no pattern and no
-            ``fill_type`` to make one; if a ``fill_type`` is given for a cell
-            with no color, which would paint it black; if both ``cells`` and
-            ``rows`` or ``columns`` are given; or if an index falls outside
-            Excel's grid.
+            If a color is not a hex color; if a color is given as None, which cannot
+            clear a fill that always carries one; if a color is given for a cell with no
+            pattern and no ``fill_type`` to make one; if a ``fill_type`` is given for a
+            cell with no color; if both ``cells`` and ``rows`` or ``columns`` are given;
+            or if an index falls outside Excel's grid.
 
         Examples
         --------
@@ -550,6 +553,12 @@ class WorksheetToolkit:
 
         requested = any(arg is not UNCHANGED for arg in (fill_type, start_color, end_color))
 
+        # Normalized before the loop, for the reason given in set_border, and so
+        # that an empty start_color is turned down as the non-color it is rather
+        # than reported below as a missing one.
+        start_color = normalize_color(start_color, name="start_color")
+        end_color = normalize_color(end_color, name="end_color")
+
         # Every fill is built before any is assigned, so a failure part-way through
         # leaves the worksheet exactly as it was found rather than half-formatted.
         updates = []
@@ -575,7 +584,7 @@ class WorksheetToolkit:
                 current_type = current_start = current_end = None
 
             new_type = current_type if fill_type is UNCHANGED else fill_type
-            new_start = current_start if start_color is UNCHANGED else normalize_color(start_color)
+            new_start = current_start if start_color is UNCHANGED else start_color
 
             if start_color is not UNCHANGED and new_type is None:
                 raise ValueError(
@@ -597,9 +606,7 @@ class WorksheetToolkit:
                         # for a theme, indexed or automatic color that attribute is
                         # the descriptor itself, which PatternFill rejects.
                         start_color=new_start,
-                        end_color=current_end
-                        if end_color is UNCHANGED
-                        else normalize_color(end_color),
+                        end_color=current_end if end_color is UNCHANGED else end_color,
                     ),
                 )
             )
@@ -667,8 +674,9 @@ class WorksheetToolkit:
             If ``rows`` or ``columns`` is given a single number rather than a
             list, or an index that is not an integer.
         ValueError
-            If both ``cells`` and ``rows`` or ``columns`` are given, if ``cells``
-            cannot be read as a range, or if an index falls outside Excel's grid.
+            If ``color`` is not a hex color, if both ``cells`` and ``rows`` or
+            ``columns`` are given, if ``cells`` cannot be read as a range, or if an
+            index falls outside Excel's grid.
 
         Examples
         --------
