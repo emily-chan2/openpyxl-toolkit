@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** an empty `rows=[]` or `columns=[]` now selects no cells. It used to mean
+  every row or column in use, the same as `None`, because the two were collapsed into
+  one value before the test that distinguished them. The two arrive from different
+  places: `None` is an axis the caller is not filtering on, and is usually a default
+  nobody typed, while an empty list is almost always a computed selection that found
+  nothing. Reading the second as the first means a filter that matched nothing formats
+  the whole sheet, which is the worst way to be wrong, and it is silent. Eight methods
+  shared it, every one that takes `rows=` or `columns=` through `iter_cells`;
+  `set_column_width` and `set_column_best_fit` already had it right.
+- Under the cross reading, `intersections_only=False`, an axis given an empty list now
+  contributes nothing to the union while the other axis still contributes everything it
+  names. An axis left as `None` still forces the block reading, since every row crossed
+  with the named columns is the whole sheet.
 - A color that is not a hex color is turned down by the name of the argument it was
   passed to: `start_color must be a hex color such as '#f4d2d3', got 'red'.` openpyxl's
   own refusal is `Colors must be aRGB hex values`, which names neither the argument nor

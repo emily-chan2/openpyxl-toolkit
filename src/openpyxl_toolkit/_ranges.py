@@ -158,15 +158,22 @@ def iter_cells(
         # A range names its own block, so there is nothing to intersect or union.
         intersections_only = True
 
-    # Normalize rows and columns
-    rows = [] if rows is None else as_indexes(rows, "rows")
-    columns = [] if columns is None else as_indexes(columns, "columns")
-    if not rows:
+    # None and an empty list are different things:
+    # • None is an axis the caller did not filter on
+    # • [] selects nothing
+    if rows is None:
+        # Every row crossed with the named columns is the whole sheet, so an
+        # axis nobody filtered has nothing to union with: the cross reading is
+        # not available here, whatever the caller asked for.
         intersections_only = True
         rows = list(range(1, worksheet.max_row + 1))
-    if not columns:
+    else:
+        rows = as_indexes(rows, "rows")
+    if columns is None:
         intersections_only = True
         columns = list(range(1, worksheet.max_column + 1))
+    else:
+        columns = as_indexes(columns, "columns")
     rows = sorted(set(rows))
     columns = sorted(set(columns))
     check_bounds(rows, columns)

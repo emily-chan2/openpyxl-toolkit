@@ -115,9 +115,9 @@ class WorksheetToolkit:
             such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
             this or ``rows`` and ``columns``, not both.
         rows : list of int, optional
-            Row numbers. Defaults to every row in use.
+            Row numbers. Defaults to every row in use. An empty list selects none.
         columns : list of int, optional
-            Column numbers. Defaults to every column in use.
+            Column numbers. Defaults to every column in use. An empty list selects none.
         intersections_only : bool, optional
             True, the default, formats the cells where the given rows and the given
             columns cross. False formats every cell in those rows and every cell in
@@ -224,9 +224,9 @@ class WorksheetToolkit:
             such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
             this or ``rows`` and ``columns``, not both.
         rows : list of int, optional
-            Row numbers. Defaults to every row in use.
+            Row numbers. Defaults to every row in use. An empty list selects none.
         columns : list of int, optional
-            Column numbers. Defaults to every column in use.
+            Column numbers. Defaults to every column in use. An empty list selects none.
         intersections_only : bool, optional
             True, the default, formats the cells where the given rows and the given
             columns cross. False formats every cell in those rows and every cell in
@@ -491,9 +491,9 @@ class WorksheetToolkit:
             such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
             this or ``rows`` and ``columns``, not both.
         rows : list of int, optional
-            Row numbers. Defaults to every row in use.
+            Row numbers. Defaults to every row in use. An empty list selects none.
         columns : list of int, optional
-            Column numbers. Defaults to every column in use.
+            Column numbers. Defaults to every column in use. An empty list selects none.
         intersections_only : bool, optional
             True, the default, formats the cells where the given rows and the given
             columns cross. False formats every cell in those rows and every cell in
@@ -639,9 +639,9 @@ class WorksheetToolkit:
             such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
             this or ``rows`` and ``columns``, not both.
         rows : list of int, optional
-            Row numbers. Defaults to every row in use.
+            Row numbers. Defaults to every row in use. An empty list selects none.
         columns : list of int, optional
-            Column numbers. Defaults to every column in use.
+            Column numbers. Defaults to every column in use. An empty list selects none.
         intersections_only : bool, optional
             True, the default, formats the cells where the given rows and the given
             columns cross. False formats every cell in those rows and every cell in
@@ -748,9 +748,9 @@ class WorksheetToolkit:
             such as 'B:D', whole rows such as '2:5', or one cell such as 'C3'. Give
             this or ``rows`` and ``columns``, not both.
         rows : list of int, optional
-            Row numbers. Defaults to every row in use.
+            Row numbers. Defaults to every row in use. An empty list selects none.
         columns : list of int, optional
-            Column numbers. Defaults to every column in use.
+            Column numbers. Defaults to every column in use. An empty list selects none.
         intersections_only : bool, optional
             True, the default, formats the cells where the given rows and the given
             columns cross. False formats every cell in those rows and every cell in
@@ -814,7 +814,8 @@ class WorksheetToolkit:
             existing value to leave alone, so omitting it cannot mean anything. A
             width of 0 hides the column.
         columns : list of int, optional
-            Column numbers to modify. Defaults to every column in use.
+            Column numbers to modify. Defaults to every column in use. An
+            empty list selects none.
 
         Returns
         -------
@@ -858,7 +859,8 @@ class WorksheetToolkit:
             Row height in points. Required, for the same reason as the column width.
             A height of 0 hides the row.
         rows : list of int, optional
-            Row numbers to modify. Defaults to every row in use.
+            Row numbers to modify. Defaults to every row in use. An empty
+            list selects none.
 
         Returns
         -------
@@ -913,7 +915,8 @@ class WorksheetToolkit:
         Parameters
         ----------
         columns : list of int, optional
-            Column numbers to fit. Defaults to every column in use.
+            Column numbers to fit. Defaults to every column in use. An empty
+            list selects none.
         padding : float, optional
             Extra width on top of the fitted value. Defaults to 0; Excel's own 5
             pixels of cell padding are already part of the formula.

@@ -126,7 +126,10 @@ is normalized, and an unbounded side is filled in from the used range, so
 `"B:B"` means column B as far as the sheet goes (rather than all 1,048,576
 rows).
 
-`rows` and `columns` take lists.
+`rows` and `columns` take lists. Leaving `rows` out (i.e., leaving it at the
+default of `None`) means every row is included. Leaving `columns` out means
+every column is included. An empty list for either means no cells will be
+selected.
 
 Given both rows and columns, `intersections_only` decides what they mean:
 
