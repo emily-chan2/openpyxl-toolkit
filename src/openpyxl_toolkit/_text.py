@@ -1,23 +1,34 @@
-"""What a cell displays, and how wide that is.
+"""What a cell displays, how wide that is, and how many lines it takes.
 
 Excel shows a stored value through the cell's number format, and a column is
 fitted to what the reader sees rather than to the value underneath.
+
+Fitting a row runs the measurement the other way. A column's width says how many
+pixels of text a cell has room for, and the text is broken into lines against
+that; the row is then as tall as the lines it holds.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Iterable, Mapping
 from datetime import date, datetime, time
 from typing import TYPE_CHECKING, Any
 
 from openpyxl.styles import DEFAULT_FONT
 
 from . import _metrics
+from .columns import column_letter
 
 if TYPE_CHECKING:
     from openpyxl.worksheet.worksheet import Worksheet
 
     from ._types import AnyCell, FontSpec
+
+# Splits on runs of whitespace and keeps them, because the spaces between two
+# words that stay on one line take up room. re.split with a group is the only
+# spelling that returns both halves.
+_WHITESPACE = re.compile(r"(\s+)")
 
 # Excel date tokens, longest first so "yyyy" is matched before "yy". Each one maps
 # to a function of the value, rather than to a strftime directive: the no-padding
@@ -136,3 +147,103 @@ def workbook_normal_font(worksheet: Worksheet) -> FontSpec:
     name = getattr(normal, "name", None) or DEFAULT_FONT.name or _metrics.DEFAULT_FONT_NAME
     size = getattr(normal, "sz", None) or DEFAULT_FONT.sz or 11.0
     return (str(name), float(size))
+
+
+def measure_row_height(lines: int, font: FontSpec) -> float:
+    """Height in points of a cell holding ``lines`` lines of ``font``."""
+    _, size = font
+    return _metrics.row_height(lines, size)
+
+
+def column_width_of(worksheet: Worksheet, column: int) -> float:
+    """The width a column already has, as Excel reads it.
+
+    A column nobody has sized carries no width in the file at all, and takes the
+    sheet's default; a sheet naming none takes Excel's. openpyxl instead reports
+    13.0 for such a column, which is neither of those and is not written to the
+    file either, so reading its ``width`` straight through would size a wrapped
+    cell against a column width that exists nowhere but in openpyxl.
+    """
+    letter = column_letter(column)
+    dimensions = worksheet.column_dimensions
+    # Membership rather than a lookup. column_dimensions creates whatever entry
+    # it is asked for, so looking one up is enough to make a column that was
+    # never touched report a deliberate width of 13.0 from then on.
+    if letter in dimensions:
+        width = dimensions[letter].width
+        if width:
+            return float(width)
+    default = worksheet.sheet_format.defaultColWidth
+    return float(default) if default else _metrics.DEFAULT_COLUMN_WIDTH
+
+
+def available_pixels(worksheet: Worksheet, columns: Iterable[int], normal_font: FontSpec) -> float:
+    """Pixels of text that fit across ``columns``.
+
+    A width of N stands for N of the workbook's widest digit, and all of it is
+    room to wrap into. The five pixels of padding in the column width formula
+    are not deducted here: measured against Excel's own best fit, a cell wraps
+    at the full width of its column, and taking the padding off again counts a
+    line more than Excel draws on text that only just fits.
+
+    More than one column is a cell merged across them, which wraps across the
+    whole merge.
+    """
+    base_name, base_size = normal_font
+    base_widths, _ = _metrics.widths_for(base_name, fallback=_metrics.DEFAULT_FONT_NAME)
+    unit = _metrics.max_digit_pixels(base_size, base_widths)
+    total = sum(column_width_of(worksheet, column) for column in columns)
+    return total * unit
+
+
+def _paragraph_lines(
+    text: str, point_size: float, widths: Mapping[str, float], pixels: float
+) -> int:
+    """How many lines one run of text takes when wrapped to ``pixels``."""
+    lines = 1
+    used = 0.0
+    for token in _WHITESPACE.split(text):
+        if not token:
+            continue
+        measured = _metrics.text_pixels(token, point_size, widths)
+        if token.isspace():
+            # A break swallows the spaces it falls on, so whitespace never
+            # pushes a line over by itself. It only takes room ahead of a word
+            # that ends up on the same line.
+            used += measured
+            continue
+        if used and used + measured > pixels:
+            lines += 1
+            used = 0.0
+        if measured <= pixels:
+            used += measured
+            continue
+        # A single word wider than the line. Excel breaks it where it runs out
+        # rather than letting it spill, so walk it a character at a time.
+        for character in token:
+            advance = _metrics.text_pixels(character, point_size, widths)
+            if used and used + advance > pixels:
+                lines += 1
+                used = 0.0
+            used += advance
+    return lines
+
+
+def count_lines(text: str, font: FontSpec, pixels: float) -> int:
+    """How many lines ``text`` takes in a cell with ``pixels`` of room.
+
+    A line break in the value always starts a new line. What is left over is
+    wrapped the way Excel wraps it: at a space where there is one, and inside
+    the word where there is not.
+    """
+    name, size = font
+    widths, _ = _metrics.widths_for(name)
+    # Excel writes a line break as \n; a value that came from somewhere else may
+    # carry the pair.
+    paragraphs = text.replace("\r\n", "\n").split("\n")
+    if pixels < _metrics.max_digit_pixels(size, widths):
+        # A column too narrow to hold one character. Breaking against a width
+        # that small would hand back a line per character and a row hundreds of
+        # points tall, where what the reader gets is a column showing nothing.
+        return len(paragraphs)
+    return sum(_paragraph_lines(line, size, widths, pixels) for line in paragraphs)

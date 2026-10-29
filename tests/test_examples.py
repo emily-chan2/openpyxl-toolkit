@@ -95,6 +95,7 @@ def test_the_documented_methods_are_the_ones_expected():
         "set_gridline_visibility",
         "set_number_format",
         "set_outside_border",
+        "set_row_best_fit",
         "set_sheet_visibility",
         "set_tab_color",
         "WorksheetToolkit",

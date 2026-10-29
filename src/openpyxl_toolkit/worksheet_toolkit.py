@@ -28,7 +28,14 @@ from ._ranges import (
     resolve_range_arguments,
 )
 from ._sentinel import UNCHANGED, Unchanged
-from ._text import displayed_text, measure_text, workbook_normal_font
+from ._text import (
+    available_pixels,
+    count_lines,
+    displayed_text,
+    measure_row_height,
+    measure_text,
+    workbook_normal_font,
+)
 from ._types import (
     BorderSide,
     BorderStyle,
@@ -1026,6 +1033,146 @@ class WorksheetToolkit:
                 width = max(width, min_width)
             ws.column_dimensions[column_letter(col)].width = min(
                 width, MAX_COLUMN_WIDTH if max_width is None else max_width
+            )
+
+        return self
+
+    def set_row_best_fit(
+        self,
+        *,
+        rows: IndexSelection = None,
+        padding: float = 0,
+        ignore_columns: Iterable[int] | None = None,
+        ignore_formulas: bool = True,
+        ignore_merged: bool = True,
+        min_height: float | None = None,
+        max_height: float | None = None,
+    ) -> WorksheetToolkit:
+        """Raise each row to fit its tallest cell.
+
+        Column widths are read, not set, so this is the second of the two: run
+        it after the widths are settled, and after ``set_column_best_fit`` where
+        both are used. A row with nothing in it is left alone rather than shrunk.
+
+        Parameters
+        ----------
+        rows : list of int, optional
+            Row numbers to fit. Defaults to every row in use. An empty list
+            selects none.
+        padding : float, optional
+            Extra height in points on top of the fitted value. Defaults to 0.
+        ignore_columns : list of int, optional
+            Column numbers to leave out when measuring.
+        ignore_formulas : bool, optional
+            True, the default, leaves formula cells unmeasured.
+        ignore_merged : bool, optional
+            True, the default, leaves a cell that is merged down more than
+            one row unmeasured. False gives the whole height to the top row
+            of the merge, the one holding the value. A merge running across
+            columns within one row is measured either way, and wraps at the
+            width of the whole merge.
+        min_height : float, optional
+            Lower bound on the result.
+        max_height : float, optional
+            Upper bound. Defaults to Excel's maximum of 409.
+
+        Returns
+        -------
+        WorksheetToolkit
+
+        Raises
+        ------
+        TypeError
+            If ``rows`` is given a single number rather than a list, or an index
+            that is not an integer.
+        ValueError
+            If a row falls outside Excel's grid.
+
+        Notes
+        -----
+        A row is as tall as its lines plus the two pixels of padding the cell
+        takes once, rather than once per line. At a single line that comes to
+        Excel's own default row height for the size: 15 at 11pt, 21 at 16pt.
+
+        The character tables behind the wrapping hold advance widths and nothing
+        vertical, so there is no per-face line height to read, and one face's
+        line spacing stands in for every face.
+
+        Rotated text is measured as though it were not rotated.
+
+        Examples
+        --------
+        >>> toolkit.set_column_best_fit(columns=[1], max_width=40)
+        >>> toolkit.set_alignment(cells="A1:A20", wrap_text=True)
+        >>> toolkit.set_row_best_fit(padding=2)
+        """
+        ws = self.worksheet
+        rows = list(range(1, ws.max_row + 1)) if rows is None else as_indexes(rows, "rows")
+        # Before any ws.cell() call: materialising an out-of-grid cell makes the
+        # workbook permanently unsaveable, so a later failure would come too late.
+        check_bounds(rows=rows)
+        ignore_columns = set() if ignore_columns is None else set(ignore_columns)
+        normal_font = workbook_normal_font(ws)
+        # Read once rather than per cell, and keyed by the top-left, which is the
+        # only cell of a merge that holds a value. The rest are MergedCells with
+        # none, and are skipped for that reason alone.
+        merges = {(r.min_row, r.min_col): r for r in ws.merged_cells.ranges}
+        # Read once as well. A row given explicitly may be past the last one in
+        # use, and the cells created for it must not widen the sweep.
+        last_column = ws.max_column
+
+        for row in rows:
+            points = 0.0
+            measured_anything = False
+            for col in range(1, last_column + 1):
+                if col in ignore_columns:
+                    continue
+
+                cell = ws.cell(row=row, column=col)
+
+                if ignore_formulas and cell.data_type == "f":
+                    continue
+
+                if cell.value is None:
+                    continue
+
+                merge = merges.get((row, col))
+
+                if ignore_merged and merge is not None and merge.max_row > merge.min_row:
+                    continue
+
+                # A cell that inherits the workbook font reports neither name nor
+                # size of its own, which Font(bold=True) alone is enough to produce.
+                font = (
+                    cell.font.name or normal_font[0],
+                    normal_font[1] if cell.font.sz is None else cell.font.sz,
+                )
+
+                if cell.alignment.wrap_text:
+                    # A merge wraps across every column it covers, not just the
+                    # one the value sits in.
+                    span = range(col, (merge.max_col if merge is not None else col) + 1)
+                    lines = count_lines(
+                        displayed_text(cell), font, available_pixels(ws, span, normal_font)
+                    )
+                else:
+                    # Excel draws an unwrapped cell on one line whatever it holds,
+                    # line breaks included: it spills sideways rather than down.
+                    lines = 1
+
+                measured_anything = True
+                points = max(points, measure_row_height(lines, font))
+
+            if not measured_anything:
+                # Nothing to fit. Leaving the row alone matters because a height
+                # set deliberately beforehand would otherwise be cut to the padding.
+                continue
+
+            height = points + padding
+            if min_height is not None:
+                height = max(height, min_height)
+            ws.row_dimensions[row].height = min(
+                height, MAX_ROW_HEIGHT if max_height is None else max_height
             )
 
         return self
