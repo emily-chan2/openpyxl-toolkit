@@ -10,4 +10,4 @@ from .columns import column_index, column_letter
 from .worksheet_toolkit import WorksheetToolkit
 
 __all__ = ["WorksheetToolkit", "column_index", "column_letter"]
-__version__ = "0.5.0"
+__version__ = "0.6.0"
