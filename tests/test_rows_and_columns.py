@@ -103,10 +103,14 @@ def test_none_still_means_every_one_in_use(sheet, roundtrip, rows, columns, expe
     assert _bold(roundtrip(sheet)) == expected
 
 
-def test_an_empty_selection_leaves_row_heights_alone(sheet, roundtrip):
+@pytest.mark.parametrize(
+    ("method", "kwargs"),
+    [("set_row_height", {"height": 40}), ("set_row_best_fit", {})],
+)
+def test_an_empty_selection_leaves_row_heights_alone(sheet, roundtrip, method, kwargs):
     _grid(sheet)
 
-    WorksheetToolkit(sheet).set_row_height(rows=[], height=40)
+    getattr(WorksheetToolkit(sheet), method)(rows=[], **kwargs)
 
     # row_dimensions is a defaultdict, so asking for a row creates its entry.
     # Membership is the only question that does not answer itself.

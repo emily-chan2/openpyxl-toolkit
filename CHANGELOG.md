@@ -5,6 +5,49 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `set_row_best_fit`, the counterpart of `set_column_best_fit`: each row is raised to
+  fit the tallest cell in it. A wrapped cell is broken against the width its column
+  already has, at a space where there is one and inside the word where there is not,
+  and a line break in the value starts a line of its own. An unwrapped cell is the one
+  line Excel draws it on, line breaks included. Either way the height of a line comes
+  from the cell's own font size, so a 16 point title asks for a taller row than the 11
+  point cells under it.
+- Column widths are read rather than set, so the two are ordered: `set_row_best_fit`
+  goes after the widths are settled. It takes `rows`, `padding`, `ignore_columns`,
+  `ignore_formulas`, `ignore_merged`, `min_height` and `max_height`, mirroring
+  `set_column_best_fit` argument for argument, and bounds the result at Excel's own
+  maximum of 409 points.
+- A cell merged down more than one row is left unmeasured by default. The height it
+  needs is shared by every row it covers and belongs to no one of them, so growing any
+  single row for it is a guess; `ignore_merged=False` puts the whole of it on the row
+  holding the value. A merge running across columns within one row is measured either
+  way, and wraps at the width of the whole merge rather than of the column the value
+  sits in.
+- A row is as tall as the lines it holds, and the cell adds nothing of its own: four
+  lines come to exactly twice two. How tall a line is was measured from Excel's own
+  best fit at two sizes, 16.0 points at 11 point and 26.0 at 20, and interpolated
+  between and beyond them. A line is not proportional to its size -- most of it is, and
+  the rest is fixed and does not shrink with the type -- so one measurement cannot give
+  both parts, and 11 point scaled up overshoots 20 point by three points.
+- Deriving any of this from Excel's default row height is the trap. That default, 15.0
+  at 11 point, is a row holding ONE line, and one line is the single case that says
+  nothing about what each further line costs. Scaling it gives 13.5 a line, which leaves
+  a five line cell eleven points short of what Excel draws, and short clips. The
+  character tables hold advance widths and nothing vertical, so there is no per-face
+  line height to read and one set of measurements stands in for every face.
+- A wrapped cell has the full width of its column to wrap into. The five pixels of
+  padding in the column width formula are not room taken away from the text:
+  deducting them breaks a line a word early, and a cell whose text only just fits
+  comes out a line taller than Excel draws it.
+- A column nobody has sized is measured at Excel's default width of 8.43 rather than at
+  the 13.0 openpyxl reports for it. That 13.0 is openpyxl's own placeholder: the column
+  carries no width in the file, which is why nothing is written for it, and a wrapped
+  cell sized against it would be given room no reader has.
+
 ## [0.5.0] - 2026-10-01
 
 ### Changed

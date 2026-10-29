@@ -79,7 +79,18 @@ Python 3.10 or newer, and openpyxl 3.1 or newer.
 | --- | --- |
 | `set_column_width` / `set_row_height` | an explicit size; 0 hides the column or row |
 | `set_column_best_fit` | a column width that fits the widest cell |
+| `set_row_best_fit` | a row height that fits the tallest cell |
 | `merge_cells` / `unmerge_cells` | a merged range |
+
+`set_row_best_fit` reads column widths rather than setting them: a wrapped cell
+takes as many lines as its column is narrow. Run it last, after the widths are
+settled.
+
+```python
+>>> toolkit.set_column_best_fit(columns=[1], max_width=40)
+>>> toolkit.set_alignment(cells="A1:A20", wrap_text=True)
+>>> toolkit.set_row_best_fit(padding=2)
+```
 
 ### Sheet-level controls
 
